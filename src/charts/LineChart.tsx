@@ -208,14 +208,12 @@ export default function LineChart({
       }
       legendX = 0; // silence unused warning path
 
-      // Source + timestamp tags.
+      // Source tag — provenance is carried by the sourceLabel prop so live
+      // hardware streams are never mislabeled as simulated (or vice versa).
       ctx.textAlign = "left";
       ctx.font = "600 9px 'IBM Plex Mono', monospace";
       ctx.fillStyle = "#5b6c82";
       ctx.fillText(`SRC: ${sourceLabel}`, PAD.l + 4, cssH - 8);
-      ctx.textAlign = "right";
-      ctx.fillStyle = "#3ce6a4";
-      ctx.fillText("SIMULATED DATA", cssW - PAD.r, PAD.t + plotH - 6);
       ctx.textBaseline = "alphabetic";
     };
 

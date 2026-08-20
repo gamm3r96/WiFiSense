@@ -28,6 +28,7 @@ import {
   TICK_S,
 } from "../simulation/engine";
 import { sensorRepo } from "../services/sensorRepo";
+import { runSelfTests, type TestResult } from "../tests/selftest";
 import type {
   EventItem,
   EventType,
@@ -40,8 +41,8 @@ import type {
   SourceMode,
 } from "../types";
 
-export const APP_VERSION = "0.2.0";
-export const PHASE = 2;
+export const APP_VERSION = "0.3.0";
+export const PHASE = 3;
 
 /* ----------------------- input validation -------------------------- */
 
@@ -79,10 +80,13 @@ class WiFiSenseStore {
   world: SimWorld = createWorld(this.cfg);
   /** Persisted fleet configuration (repository layer). */
   configs: SensorConfig[];
+  /** Latest self-test results (run at boot and on demand). */
+  selfTests: TestResult[] = [];
 
   private version = 0;
   private listeners = new Set<() => void>();
   private timer: ReturnType<typeof setInterval> | null = null;
+  private testsRan = false;
 
   constructor() {
     const stored = sensorRepo.load();
@@ -97,6 +101,10 @@ class WiFiSenseStore {
 
   init() {
     if (this.timer) return;
+    if (!this.testsRan) {
+      this.testsRan = true;
+      this.runTests(false);
+    }
     this.timer = setInterval(() => {
       if (this.mode === "simulation" && this.cfg.running) {
         advanceTick(this.world, this.cfg);
@@ -269,6 +277,47 @@ class WiFiSenseStore {
 
   setEnabled(id: string, enabled: boolean): void {
     this.updateSensor(id, { enabled });
+  }
+
+  hasSensor(id: string): boolean {
+    return this.configs.some((c) => c.id === id);
+  }
+
+  getSeed(): number {
+    return this.cfg.seed;
+  }
+
+  /** Drop telemetry buffers (Live CSI “Clear”). Never touches configs. */
+  clearBuffers(sensorId?: string): void {
+    const targets = sensorId ? this.world.sensors.filter((s) => s.id === sensorId) : this.world.sensors;
+    for (const s of targets) {
+      s.buffer = [];
+      s.specHist = [];
+    }
+    this.log(
+      "INFO",
+      "pipeline",
+      sensorId ? `Telemetry buffers cleared for ${sensorId}` : "All telemetry buffers cleared",
+      sensorId ? { sensor: sensorId } : undefined,
+    );
+    this.bump();
+  }
+
+  /** Run the deterministic self-test suite and log a structured summary. */
+  runTests(announce = true): TestResult[] {
+    const t0 = performance.now();
+    const results = runSelfTests(this);
+    const ms = (performance.now() - t0).toFixed(0);
+    this.selfTests = results;
+    const fails = results.filter((r) => !r.ok);
+    if (fails.length === 0) {
+      this.log("INFO", "selftest", `Self-test suite passed ${results.length}/${results.length} (${ms} ms)`);
+    } else {
+      this.log("WARNING", "selftest", `Self-test suite: ${results.length - fails.length}/${results.length} passed (${ms} ms)`);
+      for (const f of fails) this.log("ERROR", "selftest", `FAILED · ${f.name}: ${f.error ?? "unknown error"}`);
+    }
+    if (announce) this.bump();
+    return results;
   }
 
   /** Simulated link probe. Real adapters replace this in Phase 10/11. */

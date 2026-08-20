@@ -1,5 +1,5 @@
 /* ------------------------------------------------------------------ */
-/* WiFiSense Lab — core domain types (Phase 1)                         */
+/* WiFiSense Lab — core domain types (Phases 1–3)                      */
 /* These types describe the data contract between the simulation       */
 /* engine, the store, and the UI. Future hardware adapters must emit   */
 /* the same shapes so live data can replace simulated data 1:1.        */
@@ -110,8 +110,11 @@ export interface SensorSim {
   weight: Float64Array;
   /** Current per-subcarrier amplitude snapshot. */
   spectrum: Float64Array;
-  /** Rolling telemetry buffer (newest last). */
+  /** Rolling telemetry buffer (newest last). Index-aligned with specHist. */
   buffer: TelemetryPoint[];
+  /** Rolling per-subcarrier amplitude frames (newest last) — powers the
+      waterfall display and per-subcarrier time traces. */
+  specHist: Float64Array[];
 }
 
 export interface RoomSim {

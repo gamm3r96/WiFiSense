@@ -276,6 +276,52 @@ export default function SettingsPage() {
           </p>
         </div>
       </section>
+
+      {/* ---------------- self-test ---------------- */}
+      <section className="panel">
+        <div className="panel-head">
+          <h2 className="panel-title">Self-Test Suite</h2>
+          {sim.selfTests.length > 0 && (
+            <Chip tone={sim.selfTests.every((t) => t.ok) ? "acc" : "red"}>
+              {sim.selfTests.filter((t) => t.ok).length}/{sim.selfTests.length} PASSED
+            </Chip>
+          )}
+          <button className="btn ml-auto !py-1.5" onClick={() => sim.runTests()}>
+            <Icon name="play" size={12} /> Re-run Suite
+          </button>
+        </div>
+        <ul className="divide-y divide-line/60">
+          {sim.selfTests.map((t) => (
+            <li key={t.name} className="flex items-center gap-3 px-4 py-2">
+              <span
+                className={`grid h-4 w-4 shrink-0 place-items-center rounded-full border ${
+                  t.ok ? "border-acc/50 bg-acc/10 text-acc" : "border-red/50 bg-red/10 text-red"
+                }`}
+              >
+                {t.ok ? (
+                  <svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M4 12.5 9.5 18 20 6.5" />
+                  </svg>
+                ) : (
+                  <svg width="8" height="8" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round">
+                    <path d="M6 6l12 12M18 6 6 18" />
+                  </svg>
+                )}
+              </span>
+              <span className="mono flex-1 truncate text-[12px] text-txt">{t.name}</span>
+              {!t.ok && t.error && <span className="mono hidden max-w-[40%] truncate text-[10.5px] text-red md:block">{t.error}</span>}
+              <span className="mono text-[10.5px] text-faint">{t.ms.toFixed(1)} ms</span>
+            </li>
+          ))}
+          {sim.selfTests.length === 0 && (
+            <li className="mono px-4 py-6 text-center text-[11px] text-faint">SUITE NOT RUN YET</li>
+          )}
+        </ul>
+        <p className="border-t border-line px-4 py-2.5 text-[11px] leading-relaxed text-faint">
+          Deterministic assertions over the engine, signal filters, exporters, repository and fleet management.
+          Runs automatically at boot; results are also written to System Logs.
+        </p>
+      </section>
     </div>
   );
 }

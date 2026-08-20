@@ -4,6 +4,7 @@ import TopNav from "./components/TopNav";
 import type { PageId } from "./nav";
 import Dashboard from "./pages/Dashboard";
 import EventsPage from "./pages/EventsPage";
+import LiveCSIPage from "./pages/LiveCSIPage";
 import LogsPage from "./pages/LogsPage";
 import PlaceholderPage from "./pages/PlaceholderPage";
 import SensorsPage from "./pages/SensorsPage";
@@ -26,11 +27,13 @@ export default function App() {
         <main className="min-w-0 flex-1 overflow-y-auto">
           {page === "dashboard" && <Dashboard go={setPage} />}
           {page === "sensors" && <SensorsPage />}
+          {page === "live-csi" && <LiveCSIPage />}
           {page === "events" && <EventsPage />}
           {page === "logs" && <LogsPage />}
           {page === "settings" && <SettingsPage />}
           {page !== "dashboard" &&
             page !== "sensors" &&
+            page !== "live-csi" &&
             page !== "events" &&
             page !== "logs" &&
             page !== "settings" && <PlaceholderPage page={page} />}

@@ -7,11 +7,13 @@ interface Props {
   baseline: () => number[];
   height?: number;
   sourceLabel: string;
+  /** Highlight one subcarrier column (−1 = none). */
+  highlight?: number;
 }
 
 const PAD = { l: 40, r: 10, t: 14, b: 24 };
 
-export default function SpectrumChart({ data, baseline, height = 190, sourceLabel }: Props) {
+export default function SpectrumChart({ data, baseline, height = 190, sourceLabel, highlight = -1 }: Props) {
   const ref = useRef<HTMLCanvasElement>(null);
 
   useEffect(() => {
@@ -107,6 +109,19 @@ export default function SpectrumChart({ data, baseline, height = 190, sourceLabe
       ctx.stroke();
       ctx.setLineDash([]);
 
+      // Selected subcarrier cursor.
+      if (highlight >= 0 && highlight < n) {
+        const x = PAD.l + highlight * bw + bw / 2;
+        ctx.strokeStyle = "rgba(90,185,255,0.85)";
+        ctx.lineWidth = 1;
+        ctx.setLineDash([3, 3]);
+        ctx.beginPath();
+        ctx.moveTo(x + 0.5, PAD.t);
+        ctx.lineTo(x + 0.5, PAD.t + plotH);
+        ctx.stroke();
+        ctx.setLineDash([]);
+      }
+
       // Legend.
       ctx.textAlign = "left";
       ctx.font = "10px 'IBM Plex Mono', monospace";
@@ -134,7 +149,7 @@ export default function SpectrumChart({ data, baseline, height = 190, sourceLabe
       ro.disconnect();
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [data, baseline, height, sourceLabel]);
+  }, [data, baseline, height, sourceLabel, highlight]);
 
   return (
     <div className="relative w-full">

@@ -153,6 +153,7 @@ export function createWorld(cfg: SimConfig): SimWorld {
       weight,
       spectrum: Float64Array.from(baseAmp),
       buffer: [],
+      specHist: [],
     };
     sensors.push(s);
     room.sensorIds.push(s.id);
@@ -366,6 +367,10 @@ export function advanceTick(w: SimWorld, cfg: SimConfig): void {
     };
     s.buffer.push(pt);
     if (s.buffer.length > BUFFER_CAP) s.buffer.shift();
+    // Spectral frame history (index-aligned with buffer) for waterfall /
+    // per-subcarrier traces.
+    s.specHist.push(Float64Array.from(s.spectrum));
+    if (s.specHist.length > BUFFER_CAP) s.specHist.shift();
 
     /* ---- baseline detection events ---- */
     if (prevScore < 0.45 && s.motionScore >= 0.45 && !cooled(w, `mot-${s.id}`, 4)) {
@@ -464,6 +469,7 @@ function buildSensorFromConfig(w: SimWorld, cfg: SimConfig, sc: SensorConfig): S
     weight,
     spectrum: Float64Array.from(baseAmp),
     buffer: [],
+    specHist: [],
   };
 
   // Warm start: 6 s of synthetic history so charts render immediately.
@@ -492,8 +498,10 @@ function buildSensorFromConfig(w: SimWorld, cfg: SimConfig, sc: SensorConfig): S
     s.motionScore = s.motionScore * 0.65 + scoreInst * 0.35;
     s.rssi = -42 - 12 * Math.abs(s.slow[N >> 1]) - 7 * act - 5 * cfg.noise + g() * 1.1;
     s.buffer.push({ t, amp: mean, phase: phaseAcc / N, rssi: s.rssi, variance: varN, score: s.motionScore });
+    s.specHist.push(Float64Array.from(s.spectrum));
   }
   if (s.buffer.length > BUFFER_CAP) s.buffer.splice(0, s.buffer.length - BUFFER_CAP);
+  if (s.specHist.length > BUFFER_CAP) s.specHist.splice(0, s.specHist.length - BUFFER_CAP);
   return s;
 }
 
