@@ -41,8 +41,8 @@ import type {
   SourceMode,
 } from "../types";
 
-export const APP_VERSION = "0.4.0";
-export const PHASE = 4;
+export const APP_VERSION = "0.5.0";
+export const PHASE = 5;
 
 /* ----------------------- input validation -------------------------- */
 
@@ -358,6 +358,19 @@ class WiFiSenseStore {
   /** Structured log entry from UI/service layers (public, version-bumping). */
   logPublic(level: LogItem["level"], component: string, message: string, meta?: Record<string, string | number>) {
     this.log(level, component, message, meta);
+    this.bump();
+  }
+
+  /** Event entry from UI/service layers (public, version-bumping). */
+  pushEventPublic(
+    type: EventType,
+    severity: Severity,
+    message: string,
+    sensorId?: string,
+    roomName?: string,
+    confidence?: number,
+  ) {
+    this.pushEvent(type, severity, message, sensorId, roomName, confidence);
     this.bump();
   }
 

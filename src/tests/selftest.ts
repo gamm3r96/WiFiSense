@@ -33,6 +33,13 @@ import {
   unwrapPhase,
   variance as dspVariance,
 } from "../processing/dsp";
+import {
+  detectMotion,
+  estimateBaseline,
+  MotionDetector,
+  type DetectorInput,
+} from "../processing/detectors";
+import { mulberry32 } from "../simulation/rng";
 import type { SensorInput, SimConfig, SimWorld, TelemetryPoint } from "../types";
 
 export interface TestResult {
@@ -330,6 +337,101 @@ const CASES: Array<[string, (store: StoreUnderTest) => void]> = [
       assert(energy(v) > 0, "energy must be positive");
       const f = applyFilter(v, { kind: "movingAverage", window: 7 });
       assert(f.length === v.length, "filter changed length");
+    },
+  ],
+  [
+    "detector · quiescent signal reports no motion",
+    () => {
+      const pts: DetectorInput[] = Array.from({ length: 60 }, (_, i) => ({
+        t: i * 0.1,
+        amp: 1,
+        variance: 0.001,
+      }));
+      const r = detectMotion(pts, { threshold: 0.4, windowTicks: 20, sensitivity: 1.2 }, null);
+      assert(!r.motion, "flat signal flagged as motion");
+      assert(r.score < 0.1, `flat-signal score ${r.score.toFixed(3)} too high`);
+    },
+  ],
+  [
+    "detector · oscillation above threshold triggers motion",
+    () => {
+      const pts: DetectorInput[] = Array.from({ length: 80 }, (_, i) => ({
+        t: i * 0.1,
+        amp: 1 + 0.2 * Math.sin(2 * Math.PI * 0.4 * i * 0.1),
+        variance: 0.01,
+      }));
+      const r = detectMotion(pts, { threshold: 0.4, windowTicks: 20, sensitivity: 1.2 }, null);
+      assert(r.motion, "strong oscillation not detected");
+      assert(r.score >= 0.4, `score ${r.score.toFixed(3)} below threshold`);
+    },
+  ],
+  [
+    "detector · noise at baseline level stays quiet",
+    () => {
+      const rng = mulberry32(1234);
+      const gauss = () => (rng() + rng() + rng() + rng() - 2) / 2;
+      const pts: DetectorInput[] = Array.from({ length: 160 }, (_, i) => ({
+        t: i * 0.1,
+        amp: 1 + 0.03 * Math.sin(2 * Math.PI * 0.2 * i * 0.1) + 0.02 * gauss(),
+        variance: 0.002 + 0.001 * gauss(),
+      }));
+      const baseline = estimateBaseline(pts.slice(0, 80), 8);
+      const r = detectMotion(pts.slice(80), { threshold: 0.4, windowTicks: 20, sensitivity: 1.2 }, baseline);
+      assert(r.baselineUsed, "baseline not used");
+      assert(!r.motion, `baseline-level noise flagged as motion (score ${r.score.toFixed(3)})`);
+    },
+  ],
+  [
+    "detector · step change produces motion via deviation + temporal spike",
+    () => {
+      const flat: DetectorInput[] = Array.from({ length: 60 }, (_, i) => ({ t: i * 0.1, amp: 1, variance: 0.001 }));
+      const baseline = estimateBaseline(flat, 6);
+      const stepped: DetectorInput[] = [
+        ...flat.slice(-20),
+        ...Array.from({ length: 30 }, (_, i) => ({ t: (i + 60) * 0.1, amp: 1.25, variance: 0.004 })),
+      ];
+      const r = detectMotion(stepped, { threshold: 0.4, windowTicks: 20, sensitivity: 1.2 }, baseline);
+      assert(r.motion, "mean step not detected");
+      assert(r.components.amplitudeDev > 0.5, `amplitude-dev component weak (${r.components.amplitudeDev.toFixed(2)})`);
+    },
+  ],
+  [
+    "detector · higher threshold never increases detections",
+    () => {
+      const rng = mulberry32(99);
+      const pts: DetectorInput[] = Array.from({ length: 200 }, (_, i) => ({
+        t: i * 0.1,
+        amp: 1 + (i > 60 && i < 130 ? 0.18 * Math.sin(2 * Math.PI * 0.5 * i * 0.1) : 0) + 0.015 * (rng() - 0.5),
+        variance: 0.002,
+      }));
+      const count = (th: number) => {
+        const d = new MotionDetector({ threshold: th, windowTicks: 15, sensitivity: 1.2 }, null);
+        let n = 0;
+        for (let i = 10; i <= pts.length; i++) if (d.feed(pts.slice(0, i)).motion) n++;
+        return n;
+      };
+      const c2 = count(0.2);
+      const c5 = count(0.5);
+      const c8 = count(0.8);
+      assert(c2 >= c5 && c5 >= c8, `detections not monotonic in threshold (${c2}, ${c5}, ${c8})`);
+    },
+  ],
+  [
+    "detector · hysteresis suppresses flapping near the threshold",
+    () => {
+      const d = new MotionDetector({ threshold: 0.4, windowTicks: 10, sensitivity: 1 }, null);
+      const scores = [0.5, 0.36, 0.39, 0.33, 0.36, 0.5];
+      let roses = 0;
+      let naiveCrossings = 0;
+      let prevAbove = false;
+      for (const s of scores) {
+        if (d.evaluate(s).rose) roses++;
+        const above = s >= 0.4;
+        if (above && !prevAbove) naiveCrossings++;
+        prevAbove = above;
+      }
+      assert(roses < naiveCrossings, `hysteresis did not reduce toggles (roses ${roses} vs naive ${naiveCrossings})`);
+      assert(d.active, "detector should be active after final score 0.5");
     },
   ],
   [
