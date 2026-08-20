@@ -143,6 +143,7 @@ export type EventType =
   | "LOW_RSSI"
   | "CONFIG_CHANGE"
   | "BASELINE_CAPTURED"
+  | "MODEL_PREDICTION"
   | "SYSTEM";
 
 export type Severity = "info" | "warn" | "error";

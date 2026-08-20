@@ -214,7 +214,7 @@ export default function PlaceholderPage({ page }: { page: PageId }) {
       </section>
 
       <p className="mono text-[10.5px] leading-relaxed text-faint">
-        Phases 1–7 (dashboard, simulation engine, fleet management, live CSI, signal analysis, motion & occupancy detection, dataset recording) are live and powering this workspace. Modules are
+        All 15 phases of the roadmap — dashboard, deterministic simulation, fleet management, live CSI, signal analysis, motion & occupancy detection, dataset recording, machine learning, hardware adapters, serial monitor, room map and the experimental respiration module — are live and powering this workspace. Modules were
         built one phase at a time — compiled, tested and stabilized before the next phase begins.
       </p>
     </div>

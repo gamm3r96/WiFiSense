@@ -1,0 +1,9 @@
+# WiFiSense Lab — Python processing service (Phase 9)
+numpy>=1.26
+scipy>=1.11
+pandas>=2.1
+scikit-learn>=1.4
+fastapi>=0.110
+uvicorn>=0.29
+pyserial>=3.5
+# optional: torch>=2.2  (deep models, later phases)

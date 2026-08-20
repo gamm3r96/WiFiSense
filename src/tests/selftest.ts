@@ -50,6 +50,9 @@ import {
 } from "../processing/occupancy";
 import { mulberry32 } from "../simulation/rng";
 import { datasetRepo } from "../services/datasetRepo";
+import { LocalPrototypeClassifier, windowFeatures, type LabeledWindow } from "../services/ml";
+import { estimateRespiration } from "../processing/respiration";
+import { parseCSIText } from "../utils/csiImport";
 import { datasetToCSV, datasetToJSON } from "../utils/exporter";
 import type {
   DatasetMeta,
@@ -627,6 +630,107 @@ const CASES: Array<[string, (store: StoreUnderTest) => void]> = [
       const r = store.stopRecording();
       assert(!r.ok, "stopRecording should fail when nothing is recording");
       assert(typeof r.error === "string" && r.error.length > 0, "expected an error message");
+    },
+  ],
+  [
+    "ml · prototype classifier separates synthetic classes deterministically",
+    () => {
+      const rng = mulberry32(7);
+      const mk = (base: number[], label: string, n: number): LabeledWindow[] =>
+        Array.from({ length: n }, (_, i) => ({
+          label,
+          window: { sensorId: "t", t0: i, t1: i + 3, features: base.map((b) => b + (rng() - 0.5) * 0.15) },
+        }));
+      const windows = [
+        ...mk([1.0, 0.12, 1.1, 0.03, -50, 1.2, 0.45], "WALKING", 24),
+        ...mk([0.72, 0.02, 0.55, 0.003, -55, 0.4, 0.03], "SITTING", 24),
+      ];
+      const run = () => {
+        const c = new LocalPrototypeClassifier();
+        const fit = c.fitSync(windows);
+        assert(fit.ok, "fit failed");
+        const p1 = c.predictSync({ sensorId: "t", t0: 0, t1: 3, features: [1.0, 0.11, 1.05, 0.028, -51, 1.1, 0.4] });
+        const p2 = c.predictSync({ sensorId: "t", t0: 0, t1: 3, features: [0.71, 0.02, 0.52, 0.004, -54, 0.5, 0.04] });
+        assert(p1.prediction === "WALKING", `expected WALKING, got ${p1.prediction}`);
+        assert(p2.prediction === "SITTING", `expected SITTING, got ${p2.prediction}`);
+        assert(p1.confidence > 0.55 && p2.confidence > 0.55, "confidence too low for separable data");
+        return `${p1.prediction}/${p1.confidence.toFixed(4)}|${p2.prediction}/${p2.confidence.toFixed(4)}`;
+      };
+      const a = run();
+      const b = run();
+      assert(a === b, `classifier not deterministic: ${a} vs ${b}`);
+    },
+  ],
+  [
+    "ml · window features are finite and dimensionally stable",
+    () => {
+      const amps = Array.from({ length: 30 }, (_, i) => 0.9 + 0.1 * Math.sin(i * 0.5));
+      const rssis = Array.from({ length: 30 }, () => -52);
+      const scores = Array.from({ length: 30 }, (_, i) => (i % 7) / 10);
+      const f = windowFeatures(amps, rssis, scores);
+      assert(f.length === 7, `feature dimension ${f.length} ≠ 7`);
+      assert(f.every((v) => Number.isFinite(v)), "non-finite feature value");
+      const fEmpty = windowFeatures([], [], []);
+      assert(fEmpty.length === 7 && fEmpty.every((v) => v === 0), "empty input must yield zero vector");
+    },
+  ],
+  [
+    "resp · recovers a 0.25 Hz breathing tone (≈15 bpm)",
+    () => {
+      const fs = 10;
+      const n = fs * 60;
+      const rng = mulberry32(31);
+      const buf: TelemetryPoint[] = Array.from({ length: n }, (_, i) => ({
+        t: i / fs,
+        amp: 1 + 0.02 * Math.sin(2 * Math.PI * 0.25 * (i / fs)) + (rng() - 0.5) * 0.002,
+        phase: 0,
+        rssi: -50,
+        variance: 0.001,
+        score: 0.02,
+      }));
+      const r = estimateRespiration(buf, fs);
+      assert(r.reliable, `estimate rejected: ${r.reason}`);
+      assert(r.breathsPerMin !== null && Math.abs(r.breathsPerMin - 15) < 1.5, `bpm ${r.breathsPerMin} not near 15`);
+    },
+  ],
+  [
+    "resp · heavy motion is reported unreliable",
+    () => {
+      const fs = 10;
+      const n = fs * 45;
+      const buf: TelemetryPoint[] = Array.from({ length: n }, (_, i) => ({
+        t: i / fs,
+        amp: 1 + 0.12 * Math.sin(2 * Math.PI * 0.4 * (i / fs)),
+        phase: 0,
+        rssi: -48,
+        variance: 0.02,
+        score: 0.85,
+      }));
+      const r = estimateRespiration(buf, fs);
+      assert(!r.reliable, "motion-contaminated window must be flagged unreliable");
+      assert(r.breathsPerMin === null, "no rate may be emitted when unreliable");
+    },
+  ],
+  [
+    "import · CSV export round-trips through the parser",
+    () => {
+      const samples = mkSamples(40);
+      const meta = mkMeta("rt1", 40, [{ t: 1.2, label: "walking" }]);
+      const csv = datasetToCSV(meta, samples);
+      const res = parseCSIText("roundtrip.csv", csv);
+      assert(res.format === "csv", `format ${res.format}`);
+      assert(res.rows === samples.length, `rows ${res.rows} ≠ ${samples.length}`);
+      assert(Math.abs(res.samples[0].amp - samples[0].amp) < 1e-4, "amplitude round-trip mismatch");
+      assert(res.labels.length === 1 && res.labels[0].label === "walking", "label marker lost");
+    },
+  ],
+  [
+    "import · unknown binary format is refused, never guessed",
+    () => {
+      const res = parseCSIText("capture.npz", "PK\x03\x04binarydata");
+      assert(res.format === "npz", "npz must be identified by extension");
+      assert(res.samples.length === 0, "binary content must not be parsed as samples");
+      assert(res.errors.length > 0, "refusal must be explained");
     },
   ],
   [

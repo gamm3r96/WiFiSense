@@ -18,8 +18,9 @@ export default function SensorDetailPage({ id, onBack }: { id: string; onBack: (
   }, [s, onBack]);
   if (!s) return null;
 
-  const statusTone: Tone = !s.enabled ? "dim" : s.online ? "acc" : "red";
-  const statusLabel = !s.enabled ? "DISABLED" : s.online ? "ONLINE" : "OFFLINE";
+  const updating = sim.isUpdating(s.id);
+  const statusTone: Tone = updating ? "blue" : !s.enabled ? "dim" : s.online ? "acc" : "red";
+  const statusLabel = updating ? "UPDATING" : !s.enabled ? "DISABLED" : s.online ? "ONLINE" : "OFFLINE";
 
   const runTest = async () => {
     setTest("testing");
@@ -63,6 +64,9 @@ export default function SensorDetailPage({ id, onBack }: { id: string; onBack: (
                 <Icon name="zap" size={13} /> Test Connection
               </>
             )}
+          </button>
+          <button className="btn" onClick={() => sim.firmwareUpdate(s.id)} disabled={updating} title="Simulated OTA firmware update">
+            <Icon name="seed" size={13} /> {updating ? "Updating…" : "Simulate OTA"}
           </button>
           <button className="btn" onClick={() => setEditOpen(true)}>
             <Icon name="gear" size={13} /> Edit

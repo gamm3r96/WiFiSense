@@ -33,6 +33,8 @@ function formatBytes(n: number): string {
   return `${(n / 1024 / 1024).toFixed(2)} MB`;
 }
 
+import CsiImporter from "../components/CsiImporter";
+
 export default function DatasetsPage() {
   const world = useSim();
   const rec = sim.recording;
@@ -286,6 +288,8 @@ export default function DatasetsPage() {
       </div>
 
       {/* ------------------------ dataset browser ----------------------- */}
+      <CsiImporter />
+
       <section className="panel">
         <div className="panel-head">
           <span className="panel-title">Dataset Browser</span>

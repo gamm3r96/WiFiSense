@@ -66,8 +66,8 @@ import type {
   SourceMode,
 } from "../types";
 
-export const APP_VERSION = "0.7.0";
-export const PHASE = 7;
+export const APP_VERSION = "1.0.0";
+export const PHASE = 15;
 
 /* -------- platform-layer persistence (motion detector settings) ----- */
 
@@ -774,6 +774,53 @@ class WiFiSenseStore {
 
   getRecordingLabels(): DatasetLabel[] {
     return this.recLabels;
+  }
+
+  /** Register an externally parsed dataset (Phase 30 CSI file importer). */
+  importDataset(rec: DatasetRecord): string {
+    this.datasets = [rec.meta, ...this.datasets];
+    datasetRepo.save(rec);
+    this.pushEvent(
+      "SYSTEM",
+      "info",
+      `Dataset imported from file: ${rec.meta.name} (${rec.meta.frames} frames — UNVERIFIED provenance)`,
+      rec.meta.sensorId,
+      rec.meta.roomName || undefined,
+    );
+    this.log("INFO", "datasets", "External dataset imported", { id: rec.meta.id, frames: rec.meta.frames });
+    this.bump();
+    return rec.meta.id;
+  }
+
+  /* ------------- firmware update simulation (Phase 12) ------------- */
+  private updatingIds = new Set<string>();
+
+  isUpdating(id: string): boolean {
+    return this.updatingIds.has(id);
+  }
+
+  /** Simulated OTA update — exercises the UPDATING node state end to end. */
+  firmwareUpdate(id: string): void {
+    const s = this.world.sensors.find((x) => x.id === id);
+    const c = this.configs.find((x) => x.id === id);
+    if (!s || !c || this.updatingIds.has(id)) return;
+    this.updatingIds.add(id);
+    s.online = false;
+    this.pushEvent("CONFIG_CHANGE", "info", `${s.name}: firmware update started (simulated OTA)`, id, s.roomName);
+    this.log("INFO", "gateway", `OTA started for ${s.name}`, { sensor: id, from: c.firmware });
+    this.bump();
+    window.setTimeout(() => {
+      const m = c.firmware.match(/(\d+)\.(\d+)\.(\d+)/);
+      const next = m ? `v${m[1]}.${m[2]}.${Number(m[3]) + 1}` : "v1.0.1";
+      c.firmware = next;
+      s.firmware = next;
+      s.online = c.enabled;
+      this.updatingIds.delete(id);
+      sensorRepo.save(this.configs);
+      this.pushEvent("CONFIG_CHANGE", "info", `${s.name}: firmware ${next} installed — node back online`, id, s.roomName);
+      this.log("INFO", "gateway", `OTA complete for ${s.name}`, { sensor: id, firmware: next });
+      this.bump();
+    }, 5000);
   }
 
   /** Drop telemetry buffers (Live CSI “Clear”). Never touches configs. */

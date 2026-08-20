@@ -9,8 +9,14 @@ import LiveCSIPage from "./pages/LiveCSIPage";
 import LogsPage from "./pages/LogsPage";
 import MotionPage from "./pages/MotionPage";
 import OccupancyPage from "./pages/OccupancyPage";
-import PlaceholderPage from "./pages/PlaceholderPage";
+import ActivityPage from "./pages/ActivityPage";
+import DocsPage from "./pages/DocsPage";
+import HardwarePage from "./pages/HardwarePage";
+import MachineLearningPage from "./pages/MachineLearningPage";
+import RespirationPage from "./pages/RespirationPage";
+import RoomMapPage from "./pages/RoomMapPage";
 import SensorsPage from "./pages/SensorsPage";
+import SerialMonitorPage from "./pages/SerialMonitorPage";
 import SettingsPage from "./pages/SettingsPage";
 import SignalAnalysisPage from "./pages/SignalAnalysisPage";
 import { sim } from "./state/store";
@@ -36,19 +42,16 @@ export default function App() {
           {page === "motion" && <MotionPage />}
           {page === "occupancy" && <OccupancyPage />}
           {page === "datasets" && <DatasetsPage />}
+          {page === "ml" && <MachineLearningPage />}
+          {page === "activity" && <ActivityPage go={setPage} />}
+          {page === "room-map" && <RoomMapPage />}
+          {page === "hardware" && <HardwarePage />}
+          {page === "serial" && <SerialMonitorPage />}
+          {page === "respiration" && <RespirationPage />}
+          {page === "docs" && <DocsPage />}
           {page === "events" && <EventsPage />}
           {page === "logs" && <LogsPage />}
           {page === "settings" && <SettingsPage />}
-          {page !== "dashboard" &&
-            page !== "sensors" &&
-            page !== "live-csi" &&
-            page !== "analysis" &&
-            page !== "motion" &&
-            page !== "occupancy" &&
-            page !== "datasets" &&
-            page !== "events" &&
-            page !== "logs" &&
-            page !== "settings" && <PlaceholderPage page={page} />}
         </main>
       </div>
     </div>
