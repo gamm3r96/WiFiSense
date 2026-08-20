@@ -8,7 +8,7 @@ export type IconName =
   | "grid" | "chip" | "wave" | "zap" | "user" | "pulse" | "database"
   | "sliders" | "cpu" | "map" | "list" | "terminal" | "gear" | "alert"
   | "play" | "pause" | "antenna" | "chevron" | "download" | "flask"
-  | "x" | "plug" | "seed";
+  | "x" | "plug" | "seed" | "record" | "stop" | "tag";
 
 const ICONS: Record<IconName, ReactNode> = {
   grid: (
@@ -114,6 +114,14 @@ const ICONS: Record<IconName, ReactNode> = {
     <>
       <circle cx="12" cy="12" r="8.5" />
       <path d="M12 7v5l3.5 2" />
+    </>
+  ),
+  record: <circle cx="12" cy="12" r="6.5" fill="currentColor" stroke="none" />,
+  stop: <rect x="6.5" y="6.5" width="11" height="11" rx="1.5" fill="currentColor" stroke="none" />,
+  tag: (
+    <>
+      <path d="M12.6 3H20a1 1 0 0 1 1 1v7.4a1 1 0 0 1-.3.7l-8.6 8.6a1 1 0 0 1-1.4 0L3.3 13.3a1 1 0 0 1 0-1.4L11.9 3.3a1 1 0 0 1 .7-.3z" />
+      <circle cx="16.5" cy="7.5" r="1" fill="currentColor" stroke="none" />
     </>
   ),
 };

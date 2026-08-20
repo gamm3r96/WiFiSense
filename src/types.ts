@@ -187,3 +187,75 @@ export interface SimWorld {
   cooldowns: Map<string, number>;
   nextId: number;
 }
+
+/* ------------------------- Phase 7 · datasets ---------------------- */
+
+export type DatasetCategory =
+  | "empty"
+  | "standing"
+  | "walking"
+  | "sitting"
+  | "lying"
+  | "waving"
+  | "entering"
+  | "leaving"
+  | "other";
+
+export type DatasetStatus = "recording" | "paused" | "complete";
+
+/** One captured telemetry frame inside a dataset. */
+export interface DatasetSample {
+  /** Simulation timestamp, s. */
+  t: number;
+  sensorId: string;
+  rssi: number;
+  amp: number;
+  phase: number;
+  variance: number;
+  score: number;
+}
+
+/** A timestamped label marker added by the operator mid-recording. */
+export interface DatasetLabel {
+  /** Simulation timestamp, s. */
+  t: number;
+  label: string;
+}
+
+export interface DatasetMeta {
+  id: string;
+  name: string;
+  category: DatasetCategory;
+  sensorId: string;
+  sensorName: string;
+  roomId: string;
+  roomName: string;
+  /** Free-text subject / activity description. */
+  subject: string;
+  notes: string;
+  /** Wall-clock ms. */
+  createdAt: number;
+  startedAtSim: number;
+  stoppedAtSim: number | null;
+  status: DatasetStatus;
+  frames: number;
+  labels: DatasetLabel[];
+  /** Approximate serialized size in bytes. */
+  sizeBytes: number;
+  source: SourceMode;
+  seed: number;
+  sampleRateHz: number;
+}
+
+/** In-flight recorder state. */
+export interface RecordingState {
+  active: boolean;
+  paused: boolean;
+  datasetId: string | null;
+  sensorId: string;
+  category: DatasetCategory;
+  subject: string;
+  notes: string;
+  startedAtSim: number | null;
+  frames: number;
+}

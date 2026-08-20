@@ -3,6 +3,7 @@ import Sidebar from "./components/Sidebar";
 import TopNav from "./components/TopNav";
 import type { PageId } from "./nav";
 import Dashboard from "./pages/Dashboard";
+import DatasetsPage from "./pages/DatasetsPage";
 import EventsPage from "./pages/EventsPage";
 import LiveCSIPage from "./pages/LiveCSIPage";
 import LogsPage from "./pages/LogsPage";
@@ -34,6 +35,7 @@ export default function App() {
           {page === "analysis" && <SignalAnalysisPage />}
           {page === "motion" && <MotionPage />}
           {page === "occupancy" && <OccupancyPage />}
+          {page === "datasets" && <DatasetsPage />}
           {page === "events" && <EventsPage />}
           {page === "logs" && <LogsPage />}
           {page === "settings" && <SettingsPage />}
@@ -43,6 +45,7 @@ export default function App() {
             page !== "analysis" &&
             page !== "motion" &&
             page !== "occupancy" &&
+            page !== "datasets" &&
             page !== "events" &&
             page !== "logs" &&
             page !== "settings" && <PlaceholderPage page={page} />}

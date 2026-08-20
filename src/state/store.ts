@@ -29,6 +29,7 @@ import {
 } from "../simulation/engine";
 import { sensorRepo } from "../services/sensorRepo";
 import { baselineRepo } from "../services/baselineRepo";
+import { datasetRepo, type DatasetRecord } from "../services/datasetRepo";
 import { runSelfTests, type TestResult } from "../tests/selftest";
 import {
   DEFAULT_MOTION_CFG,
@@ -49,9 +50,14 @@ import {
 } from "../processing/occupancy";
 import { clamp, clamp01 } from "../utils/format";
 import type {
+  DatasetCategory,
+  DatasetLabel,
+  DatasetMeta,
+  DatasetSample,
   EventItem,
   EventType,
   LogItem,
+  RecordingState,
   SensorConfig,
   SensorInput,
   Severity,
@@ -60,8 +66,8 @@ import type {
   SourceMode,
 } from "../types";
 
-export const APP_VERSION = "0.6.0";
-export const PHASE = 6;
+export const APP_VERSION = "0.7.0";
+export const PHASE = 7;
 
 /* -------- platform-layer persistence (motion detector settings) ----- */
 
@@ -134,6 +140,26 @@ class WiFiSenseStore {
   /** Persisted empty-room baselines (repository layer). */
   baselines: Record<string, RoomBaseline>;
 
+  /* ---------------- recording layer (Phase 7) ---------------- */
+  /** Dataset metadata index (newest first). */
+  datasets: DatasetMeta[] = [];
+  /** In-flight recorder state. */
+  recording: RecordingState = {
+    active: false,
+    paused: false,
+    datasetId: null,
+    sensorId: "",
+    category: "walking",
+    subject: "",
+    notes: "",
+    startedAtSim: null,
+    frames: 0,
+  };
+  /** Sample/label accumulators for the dataset currently being recorded. */
+  private recSamples: DatasetSample[] = [];
+  private recLabels: DatasetLabel[] = [];
+  private lastSampledT = -1;
+
   private version = 0;
   private listeners = new Set<() => void>();
   private timer: ReturnType<typeof setInterval> | null = null;
@@ -149,6 +175,9 @@ class WiFiSenseStore {
       sensorRepo.save(this.configs);
     }
     this.baselines = baselineRepo.load() ?? {};
+    this.datasets = datasetRepo.loadIndex();
+    // Default the recorder to the first online node for convenience.
+    this.recording.sensorId = this.world.sensors.find((s) => s.online)?.id ?? this.world.sensors[0]?.id ?? "";
   }
 
   init() {
@@ -161,10 +190,37 @@ class WiFiSenseStore {
       if (this.mode === "simulation" && this.cfg.running) {
         advanceTick(this.world, this.cfg);
         this.stepPlatform();
+        this.stepRecorder();
         this.version++;
         this.listeners.forEach((l) => l());
       }
     }, TICK_S * 1000);
+  }
+
+  /**
+   * Dataset recorder — samples the selected node once per engine tick while
+   * a recording is active (and not paused). Captures are appended to an
+   * in-memory buffer and flushed to the repository when the operator stops.
+   */
+  private stepRecorder(): void {
+    const rec = this.recording;
+    if (!rec.active || rec.paused) return;
+    const sensor = this.world.sensors.find((s) => s.id === rec.sensorId);
+    if (!sensor || !sensor.online || !sensor.enabled || sensor.buffer.length === 0) return;
+    const pt = sensor.buffer[sensor.buffer.length - 1];
+    // De-duplicate by simulation timestamp (guards against paused/resumed edges).
+    if (pt.t === this.lastSampledT) return;
+    this.lastSampledT = pt.t;
+    this.recSamples.push({
+      t: pt.t,
+      sensorId: sensor.id,
+      rssi: pt.rssi,
+      amp: pt.amp,
+      phase: pt.phase,
+      variance: pt.variance,
+      score: pt.score,
+    });
+    rec.frames = this.recSamples.length;
   }
 
   /**
@@ -576,6 +632,148 @@ class WiFiSenseStore {
     this.pushEvent("BASELINE_CAPTURED", "info", `${name}: baseline cleared — room returns to UNKNOWN`, undefined, name);
     this.log("INFO", "occupancy", "Room baseline cleared", { room: name });
     this.bump();
+  }
+
+  /* ---------------------- recording actions (Phase 7) ------------------ */
+
+  private static uid(): string {
+    return `ds-${Date.now().toString(36)}-${Math.floor(Math.random() * 0xffff).toString(16).padStart(4, "0")}`;
+  }
+
+  setRecorderSensor(id: string): void {
+    if (this.recording.active) return; // locked while recording
+    this.recording.sensorId = id;
+    this.bump();
+  }
+
+  setRecorderCategory(c: DatasetCategory): void {
+    this.recording.category = c;
+    this.bump();
+  }
+
+  startRecording(subject: string, notes: string): { ok: boolean; error?: string } {
+    const rec = this.recording;
+    if (rec.active) return { ok: false, error: "A recording is already in progress" };
+    const sensor = this.world.sensors.find((s) => s.id === rec.sensorId);
+    if (!sensor) return { ok: false, error: "Select a valid sensor" };
+    if (this.mode !== "simulation") return { ok: false, error: "No live CSI source connected — recording requires a data stream" };
+    if (!this.cfg.running) return { ok: false, error: "Simulation stream is halted — start it from Settings" };
+
+    const id = WiFiSenseStore.uid();
+    this.recSamples = [];
+    this.recLabels = [];
+    this.lastSampledT = -1;
+    rec.active = true;
+    rec.paused = false;
+    rec.datasetId = id;
+    rec.subject = sanitizeName(subject) || "Untitled capture";
+    rec.notes = notes.trim().slice(0, 240);
+    rec.startedAtSim = this.world.simTime;
+    rec.frames = 0;
+
+    this.pushEvent("SYSTEM", "info", `Dataset recording started on ${sensor.name} (${rec.category})`, sensor.id, sensor.roomName);
+    this.log("INFO", "dataset", "Recording started", { sensor: sensor.id, category: rec.category });
+    this.bump();
+    return { ok: true };
+  }
+
+  pauseRecording(): void {
+    if (!this.recording.active || this.recording.paused) return;
+    this.recording.paused = true;
+    this.log("INFO", "dataset", "Recording paused", { frames: this.recSamples.length });
+    this.bump();
+  }
+
+  resumeRecording(): void {
+    if (!this.recording.active || !this.recording.paused) return;
+    this.recording.paused = false;
+    this.log("INFO", "dataset", "Recording resumed", { frames: this.recSamples.length });
+    this.bump();
+  }
+
+  /** Stop and persist the active recording. Returns the saved dataset id. */
+  stopRecording(): { ok: boolean; id?: string; error?: string } {
+    const rec = this.recording;
+    if (!rec.active || !rec.datasetId) return { ok: false, error: "No active recording" };
+    const sensor = this.world.sensors.find((s) => s.id === rec.sensorId);
+    const samples = [...this.recSamples];
+    const labels = [...this.recLabels];
+    const meta: DatasetMeta = {
+      id: rec.datasetId,
+      name: `${rec.category}_${sensor?.name ?? rec.sensorId}_${new Date(rec.startedAtSim ?? Date.now()).toISOString().slice(11, 19).replace(/:/g, "")}`,
+      category: rec.category,
+      sensorId: rec.sensorId,
+      sensorName: sensor?.name ?? rec.sensorId,
+      roomId: sensor?.roomId ?? "",
+      roomName: sensor?.roomName ?? "",
+      subject: rec.subject,
+      notes: rec.notes,
+      createdAt: Date.now(),
+      startedAtSim: rec.startedAtSim ?? this.world.simTime,
+      stoppedAtSim: this.world.simTime,
+      status: "complete",
+      frames: samples.length,
+      labels,
+      sizeBytes: JSON.stringify(samples).length,
+      source: this.mode,
+      seed: this.cfg.seed,
+      sampleRateHz: this.cfg.sampleRate,
+    };
+    datasetRepo.save({ meta, samples });
+    this.datasets = datasetRepo.loadIndex();
+    this.pushEvent(
+      "SYSTEM",
+      "info",
+      `Dataset saved: ${meta.name} (${samples.length} frames, ${labels.length} labels)`,
+      rec.sensorId,
+      sensor?.roomName,
+    );
+    this.log("INFO", "dataset", "Recording saved", { id: meta.id, frames: samples.length, bytes: meta.sizeBytes });
+
+    // Reset recorder.
+    rec.active = false;
+    rec.paused = false;
+    rec.datasetId = null;
+    rec.startedAtSim = null;
+    rec.frames = 0;
+    this.recSamples = [];
+    this.recLabels = [];
+    this.bump();
+    return { ok: true, id: meta.id };
+  }
+
+  /** Attach a timestamped label marker to the active recording. */
+  addRecordingLabel(label: string): void {
+    const clean = label.trim().slice(0, 60);
+    if (!this.recording.active || !clean) return;
+    this.recLabels.push({ t: this.world.simTime, label: clean });
+    this.log("DEBUG", "dataset", `Label marker added: "${clean}"`, { t: +this.world.simTime.toFixed(1) });
+    this.bump();
+  }
+
+  deleteDataset(id: string): void {
+    const ds = this.datasets.find((d) => d.id === id);
+    datasetRepo.remove(id);
+    this.datasets = datasetRepo.loadIndex();
+    if (ds) {
+      this.pushEvent("SYSTEM", "warn", `Dataset deleted: ${ds.name}`, ds.sensorId, ds.roomName || undefined);
+      this.log("WARNING", "dataset", "Dataset deleted", { id, name: ds.name });
+    }
+    this.bump();
+  }
+
+  /** Full record (meta + samples) for viewing / export. */
+  getDataset(id: string): DatasetRecord | null {
+    return datasetRepo.load(id);
+  }
+
+  /** Samples buffered so far for the in-flight recording (for the live chart). */
+  getRecordingSamples(): DatasetSample[] {
+    return this.recSamples;
+  }
+
+  getRecordingLabels(): DatasetLabel[] {
+    return this.recLabels;
   }
 
   /** Drop telemetry buffers (Live CSI “Clear”). Never touches configs. */

@@ -49,7 +49,16 @@ import {
   type StepInput,
 } from "../processing/occupancy";
 import { mulberry32 } from "../simulation/rng";
-import type { SensorInput, SimConfig, SimWorld, TelemetryPoint } from "../types";
+import { datasetRepo } from "../services/datasetRepo";
+import { datasetToCSV, datasetToJSON } from "../utils/exporter";
+import type {
+  DatasetMeta,
+  DatasetSample,
+  SensorInput,
+  SimConfig,
+  SimWorld,
+  TelemetryPoint,
+} from "../types";
 
 export interface TestResult {
   name: string;
@@ -67,6 +76,46 @@ export interface StoreUnderTest {
   hasSensor(id: string): boolean;
   getSeed(): number;
   rebuild(patch: Partial<Pick<SimConfig, "seed" | "sensorCount" | "sampleRate" | "subcarriers">>): void;
+  /** Recorder guard: stopping with no active recording must fail cleanly. */
+  stopRecording(): { ok: boolean; id?: string; error?: string };
+}
+
+/* ---------------------- dataset test helpers ----------------------- */
+
+function mkSamples(n: number, sensorId = "ESP32-S3-001"): DatasetSample[] {
+  return Array.from({ length: n }, (_, i) => ({
+    t: i * 0.1,
+    sensorId,
+    rssi: -50 - (i % 5),
+    amp: 0.8 + 0.05 * Math.sin(i * 0.3),
+    phase: 0.2 * i,
+    variance: 0.002 + (i % 3) * 1e-4,
+    score: Math.min(1, i / n),
+  }));
+}
+
+function mkMeta(id: string, frames: number, labels: DatasetMeta["labels"] = []): DatasetMeta {
+  return {
+    id,
+    name: `walking_test_${id}`,
+    category: "walking",
+    sensorId: "ESP32-S3-001",
+    sensorName: "ESP32-S3-001",
+    roomId: "room-1",
+    roomName: "Lab A",
+    subject: "Self-test subject",
+    notes: "synthetic",
+    createdAt: Date.now(),
+    startedAtSim: 0,
+    stoppedAtSim: frames * 0.1,
+    status: "complete",
+    frames,
+    labels,
+    sizeBytes: frames * 60,
+    source: "simulation",
+    seed: 4242,
+    sampleRateHz: 100,
+  };
 }
 
 function assert(cond: boolean, msg: string): void {
@@ -523,6 +572,61 @@ const CASES: Array<[string, (store: StoreUnderTest) => void]> = [
       assert(d < 1e-9, `self-deviation must be ~0, got ${d}`);
       const shifted = spectralDeviation(new Float64Array([0.9, 0.2, 0.95]), stats);
       assert(shifted > 0.5, `large shift must give high deviation, got ${shifted}`);
+    },
+  ],
+  [
+    "dataset · repository save/load/remove round-trip",
+    () => {
+      const id = "selftest-ds-roundtrip";
+      const samples = mkSamples(40);
+      const meta = mkMeta(id, samples.length, [{ t: 1.2, label: "wave start" }]);
+      datasetRepo.save({ meta, samples });
+      const loaded = datasetRepo.load(id);
+      assert(!!loaded, "saved dataset not retrievable");
+      assert(loaded!.samples.length === 40, `expected 40 samples, got ${loaded!.samples.length}`);
+      assert(loaded!.meta.labels.length === 1, "label not persisted");
+      assert(datasetRepo.loadIndex().some((m) => m.id === id), "index missing saved dataset");
+      datasetRepo.remove(id);
+      assert(datasetRepo.load(id) === null, "dataset still present after remove");
+      assert(!datasetRepo.loadIndex().some((m) => m.id === id), "index still lists removed dataset");
+    },
+  ],
+  [
+    "dataset · CSV export has header, rows and label comments",
+    () => {
+      const samples = mkSamples(25);
+      const meta = mkMeta("selftest-ds-csv", 25, [{ t: 0.5, label: "enter" }, { t: 1.5, label: "exit" }]);
+      const csv = datasetToCSV(meta, samples);
+      const lines = csv.split("\n");
+      assert(lines[0] === "t_s,sensor_id,rssi_dbm,amplitude,phase_rad,variance,motion_score", "CSV header mismatch");
+      const dataRows = lines.filter((l) => !l.startsWith("#"));
+      assert(dataRows.length === 26, `expected 26 non-comment lines, got ${dataRows.length}`);
+      const labelRows = lines.filter((l) => l.startsWith("# label"));
+      assert(labelRows.length === 2, `expected 2 label comments, got ${labelRows.length}`);
+    },
+  ],
+  [
+    "dataset · JSON export carries provenance and aligned rows/labels",
+    () => {
+      const samples = mkSamples(30);
+      const meta = mkMeta("selftest-ds-json", 30, [{ t: 1.0, label: "mark" }]);
+      const parsed = JSON.parse(datasetToJSON(meta, samples)) as {
+        meta: { source: string; provenance: string };
+        rows: unknown[];
+        labels: unknown[];
+      };
+      assert(parsed.meta.source === "simulation", "source field wrong");
+      assert(/SYNTHETIC/i.test(parsed.meta.provenance), "provenance not explicit");
+      assert(parsed.rows.length === 30, "row count mismatch");
+      assert(parsed.labels.length === 1, "label count mismatch");
+    },
+  ],
+  [
+    "recorder · stopping with no active recording fails cleanly",
+    (store) => {
+      const r = store.stopRecording();
+      assert(!r.ok, "stopRecording should fail when nothing is recording");
+      assert(typeof r.error === "string" && r.error.length > 0, "expected an error message");
     },
   ],
   [
