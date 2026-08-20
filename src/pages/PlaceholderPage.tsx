@@ -214,7 +214,7 @@ export default function PlaceholderPage({ page }: { page: PageId }) {
       </section>
 
       <p className="mono text-[10.5px] leading-relaxed text-faint">
-        Phase 1 (dashboard + deterministic simulation engine) is live and powering this workspace. Modules are
+        Phases 1–2 (dashboard, deterministic simulation engine, sensor fleet management) are live and powering this workspace. Modules are
         built one phase at a time — compiled, tested and stabilized before the next phase begins.
       </p>
     </div>

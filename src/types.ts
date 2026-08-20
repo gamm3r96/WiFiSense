@@ -7,6 +7,9 @@
 
 export type SourceMode = "simulation" | "live";
 
+/** Planned transport for a node (real transports attach in Phase 10/11). */
+export type TransportKind = "udp" | "tcp" | "serial";
+
 export type RoomState =
   | "EMPTY"
   | "ENTERING"
@@ -49,6 +52,32 @@ export interface TelemetryPoint {
   score: number;
 }
 
+/**
+ * Persisted sensor configuration (Phase 2 — repository layer).
+ * This is the row shape that will live in the `sensors` table once the
+ * Node/SQLite backend arrives; for now it is stored in localStorage.
+ */
+export interface SensorConfig {
+  id: string;
+  name: string;
+  roomId: string;
+  ip: string;
+  mac: string;
+  channel: number;
+  band: "2.4 GHz" | "5 GHz";
+  hardware: string;
+  firmware: string;
+  sampleRate: number;
+  transport: TransportKind;
+  /** Admin switch — disabled nodes are held offline by the gateway. */
+  enabled: boolean;
+  /** true for operator-added nodes (survives seed/count rebuilds). */
+  custom: boolean;
+}
+
+/** Operator input when creating/editing a sensor (validated in store). */
+export type SensorInput = Omit<SensorConfig, "id" | "custom"> & { id?: string };
+
 export interface SensorSim {
   id: string;
   name: string;
@@ -60,6 +89,10 @@ export interface SensorSim {
   band: "2.4 GHz" | "5 GHz";
   hardware: string;
   firmware: string;
+  enabled: boolean;
+  custom: boolean;
+  sampleRate: number;
+  transport: TransportKind;
   online: boolean;
   /** Ticks remaining until an offline sensor recovers. */
   offlineFor: number;
@@ -105,6 +138,7 @@ export type EventType =
   | "SENSOR_OFFLINE"
   | "HIGH_PACKET_LOSS"
   | "LOW_RSSI"
+  | "CONFIG_CHANGE"
   | "SYSTEM";
 
 export type Severity = "info" | "warn" | "error";

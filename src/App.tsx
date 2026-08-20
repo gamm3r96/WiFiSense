@@ -6,6 +6,7 @@ import Dashboard from "./pages/Dashboard";
 import EventsPage from "./pages/EventsPage";
 import LogsPage from "./pages/LogsPage";
 import PlaceholderPage from "./pages/PlaceholderPage";
+import SensorsPage from "./pages/SensorsPage";
 import SettingsPage from "./pages/SettingsPage";
 import { sim } from "./state/store";
 
@@ -24,10 +25,12 @@ export default function App() {
         <Sidebar page={page} go={setPage} />
         <main className="min-w-0 flex-1 overflow-y-auto">
           {page === "dashboard" && <Dashboard go={setPage} />}
+          {page === "sensors" && <SensorsPage />}
           {page === "events" && <EventsPage />}
           {page === "logs" && <LogsPage />}
           {page === "settings" && <SettingsPage />}
           {page !== "dashboard" &&
+            page !== "sensors" &&
             page !== "events" &&
             page !== "logs" &&
             page !== "settings" && <PlaceholderPage page={page} />}

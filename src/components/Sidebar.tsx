@@ -1,5 +1,5 @@
 import { NAV, type PageId } from "../nav";
-import { sim, useSimVersion } from "../state/store";
+import { PHASE, sim, useSimVersion } from "../state/store";
 import { Dot, Icon } from "./ui";
 
 export default function Sidebar({ page, go }: { page: PageId; go: (p: PageId) => void }) {
@@ -16,7 +16,7 @@ export default function Sidebar({ page, go }: { page: PageId; go: (p: PageId) =>
             <div className="lbl mb-1.5 hidden px-2.5 md:block">{g}</div>
             {NAV.filter((n) => n.group === g).map((n) => {
               const active = page === n.id;
-              const ready = n.phase === 1;
+              const ready = n.phase <= PHASE;
               return (
                 <button
                   key={n.id}
