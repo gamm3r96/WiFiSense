@@ -6,6 +6,8 @@ import Dashboard from "./pages/Dashboard";
 import EventsPage from "./pages/EventsPage";
 import LiveCSIPage from "./pages/LiveCSIPage";
 import LogsPage from "./pages/LogsPage";
+import MotionPage from "./pages/MotionPage";
+import OccupancyPage from "./pages/OccupancyPage";
 import PlaceholderPage from "./pages/PlaceholderPage";
 import SensorsPage from "./pages/SensorsPage";
 import SettingsPage from "./pages/SettingsPage";
@@ -30,6 +32,8 @@ export default function App() {
           {page === "sensors" && <SensorsPage />}
           {page === "live-csi" && <LiveCSIPage />}
           {page === "analysis" && <SignalAnalysisPage />}
+          {page === "motion" && <MotionPage />}
+          {page === "occupancy" && <OccupancyPage />}
           {page === "events" && <EventsPage />}
           {page === "logs" && <LogsPage />}
           {page === "settings" && <SettingsPage />}
@@ -37,6 +41,8 @@ export default function App() {
             page !== "sensors" &&
             page !== "live-csi" &&
             page !== "analysis" &&
+            page !== "motion" &&
+            page !== "occupancy" &&
             page !== "events" &&
             page !== "logs" &&
             page !== "settings" && <PlaceholderPage page={page} />}

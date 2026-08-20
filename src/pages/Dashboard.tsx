@@ -1,9 +1,9 @@
 import { useMemo, useState } from "react";
 import LineChart, { type SeriesDef } from "../charts/LineChart";
 import SpectrumChart from "../charts/SpectrumChart";
-import { Dot, Icon, Meter, Sparkline, stateTone, Chip, severityTone } from "../components/ui";
+import { Dot, Icon, Meter, Sparkline, Chip, severityTone } from "../components/ui";
 import type { PageId } from "../nav";
-import { roomIsOccupied } from "../simulation/engine";
+import { isPresence } from "../processing/occupancy";
 import { sim, useSim } from "../state/store";
 import { fmtAgo, fmtClock, fmtDbm, fmtUptime } from "../utils/format";
 
@@ -71,7 +71,7 @@ export default function Dashboard({ go }: { go: (p: PageId) => void }) {
   const online = world.sensors.filter((s) => s.online);
   const offline = world.sensors.length - online.length;
   const activeRooms = world.rooms.filter((r) => r.anyOnline).length;
-  const occupied = world.rooms.filter((r) => roomIsOccupied(r.state)).length;
+  const occupied = world.rooms.filter((r) => isPresence(sim.assessmentFor(r.id).state)).length;
   const motionWindow = world.motionStamps.filter((t) => world.simTime - t < 300).length;
   const srcLabel = `SIM ENGINE · SEED ${sim.cfg.seed}`;
   const halted = sim.mode === "live" || !sim.cfg.running;
@@ -238,19 +238,20 @@ export default function Dashboard({ go }: { go: (p: PageId) => void }) {
           </div>
           <div className="grid grid-cols-1 gap-2.5 p-3 sm:grid-cols-2 lg:grid-cols-1 xl:grid-cols-2">
             {world.rooms.map((r) => {
-              const motion = world.sensors.some((s) => s.roomId === r.id && s.online && s.motionScore > 0.45);
-              const occ = roomIsOccupied(r.state);
+              const a = sim.assessmentFor(r.id);
+              const pres = isPresence(a.state);
+              const motion = a.motionScore >= sim.motionCfg.threshold;
               return (
                 <div key={r.id} className="rounded-md border border-line bg-panel px-3 py-2.5 transition-colors hover:border-line2">
                   <div className="flex items-center justify-between gap-2">
                     <span className="font-disp text-[13px] font-semibold tracking-wide text-txt">{r.name}</span>
-                    <Chip tone={stateTone(r.state)}>{r.state.toLowerCase()}</Chip>
+                    <Chip tone={pres ? "acc" : a.state === "UNKNOWN" ? "red" : "dim"}>{a.state}</Chip>
                   </div>
                   <div className="mt-2 flex items-center justify-between">
                     <div>
                       <div className="lbl">Occupancy</div>
-                      <div className={`font-disp mt-0.5 text-[13px] font-semibold ${occ ? "text-acc" : "text-dim"}`}>
-                        {occ ? "OCCUPIED" : "VACANT"}
+                      <div className={`font-disp mt-0.5 text-[13px] font-semibold ${pres ? "text-acc" : "text-dim"}`}>
+                        {pres ? "PRESENT" : a.state === "UNKNOWN" ? "UNKNOWN" : "VACANT"}
                       </div>
                     </div>
                     <div>
@@ -261,12 +262,12 @@ export default function Dashboard({ go }: { go: (p: PageId) => void }) {
                     </div>
                     <div>
                       <div className="lbl">Conf. (est.)</div>
-                      <div className="mono mt-0.5 text-[13px] font-semibold text-txt">{r.confidence}%</div>
+                      <div className="mono mt-0.5 text-[13px] font-semibold text-txt">{a.confidence}%</div>
                     </div>
                   </div>
                   <div className="mt-2 flex items-end gap-2">
                     <div className="flex-1">
-                      <Sparkline data={r.hist} color={occ ? "#3ce6a4" : "#5b6c82"} height={22} />
+                      <Sparkline data={a.history.map((p) => p.v)} color={pres ? "#3ce6a4" : "#5b6c82"} height={22} />
                     </div>
                     <span className="mono text-[9.5px] text-faint">{r.sensorIds.length} node{r.sensorIds.length > 1 ? "s" : ""}</span>
                   </div>

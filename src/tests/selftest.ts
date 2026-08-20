@@ -39,6 +39,15 @@ import {
   MotionDetector,
   type DetectorInput,
 } from "../processing/detectors";
+import {
+  computeSensorStats,
+  emptyAssessment,
+  isPresence,
+  OCC_THRESHOLDS,
+  spectralDeviation,
+  stepOccupancy,
+  type StepInput,
+} from "../processing/occupancy";
 import { mulberry32 } from "../simulation/rng";
 import type { SensorInput, SimConfig, SimWorld, TelemetryPoint } from "../types";
 
@@ -432,6 +441,88 @@ const CASES: Array<[string, (store: StoreUnderTest) => void]> = [
       }
       assert(roses < naiveCrossings, `hysteresis did not reduce toggles (roses ${roses} vs naive ${naiveCrossings})`);
       assert(d.active, "detector should be active after final score 0.5");
+    },
+  ],
+  [
+    "occupancy · no baseline yields UNKNOWN",
+    () => {
+      const input: StepInput = {
+        t: 1, sensorsOnline: true, hasBaseline: false, spectral: 0.5, rssiScore: 0.5,
+        motionScore: 0.5, motionThresh: 0.4, baselineFrames: 0, coverage: 0,
+      };
+      const a = stepOccupancy(null, input);
+      assert(a.state === "UNKNOWN", `expected UNKNOWN, got ${a.state}`);
+      assert(a.confidence === 0, "UNKNOWN must carry zero confidence");
+    },
+  ],
+  [
+    "occupancy · quiet room settles to EMPTY after confirmation",
+    () => {
+      let a = emptyAssessment();
+      const input: StepInput = {
+        t: 0, sensorsOnline: true, hasBaseline: true, spectral: 0.02, rssiScore: 0.02,
+        motionScore: 0.05, motionThresh: 0.4, baselineFrames: 100, coverage: 1,
+      };
+      for (let i = 0; i < OCC_THRESHOLDS.emptyConfirm + 5; i++) {
+        a = stepOccupancy(a, { ...input, t: i * 0.1 });
+      }
+      assert(a.state === "EMPTY", `expected EMPTY, got ${a.state}`);
+      assert(!isPresence(a.state), "EMPTY must not count as presence");
+    },
+  ],
+  [
+    "occupancy · high deviation with motion becomes MOTION",
+    () => {
+      let a = emptyAssessment();
+      const input: StepInput = {
+        t: 0, sensorsOnline: true, hasBaseline: true, spectral: 0.6, rssiScore: 0.4,
+        motionScore: 0.7, motionThresh: 0.4, baselineFrames: 100, coverage: 1,
+      };
+      for (let i = 0; i < OCC_THRESHOLDS.occupyConfirm + 3; i++) {
+        a = stepOccupancy(a, { ...input, t: i * 0.1 });
+      }
+      assert(a.state === "MOTION", `expected MOTION, got ${a.state}`);
+      assert(isPresence(a.state), "MOTION must count as presence");
+    },
+  ],
+  [
+    "occupancy · high deviation without motion becomes STATIONARY",
+    () => {
+      let a = emptyAssessment();
+      const input: StepInput = {
+        t: 0, sensorsOnline: true, hasBaseline: true, spectral: 0.6, rssiScore: 0.4,
+        motionScore: 0.1, motionThresh: 0.4, baselineFrames: 100, coverage: 1,
+      };
+      for (let i = 0; i < OCC_THRESHOLDS.stationaryConfirm + OCC_THRESHOLDS.occupyConfirm + 5; i++) {
+        a = stepOccupancy(a, { ...input, t: i * 0.1 });
+      }
+      assert(a.state === "STATIONARY", `expected STATIONARY, got ${a.state}`);
+      assert(isPresence(a.state), "STATIONARY must count as presence");
+    },
+  ],
+  [
+    "occupancy · computeSensorStats recovers mean and σ",
+    () => {
+      const frames = [
+        new Float64Array([1, 2]),
+        new Float64Array([3, 4]),
+        new Float64Array([2, 3]),
+      ];
+      const stats = computeSensorStats(frames, 2);
+      assert(Math.abs(stats.mean[0] - 2) < 1e-9, `mean[0] = ${stats.mean[0]}`);
+      assert(Math.abs(stats.mean[1] - 3) < 1e-9, `mean[1] = ${stats.mean[1]}`);
+      assert(stats.sd[0] > 0 && stats.sd[1] > 0, "σ must be positive for spread data");
+      assert(stats.frames === 3, "frame count wrong");
+    },
+  ],
+  [
+    "occupancy · spectralDeviation is zero for the baseline itself",
+    () => {
+      const stats = { mean: [0.5, 0.7, 0.6], sd: [0.05, 0.04, 0.06], frames: 50 };
+      const d = spectralDeviation(new Float64Array([0.5, 0.7, 0.6]), stats);
+      assert(d < 1e-9, `self-deviation must be ~0, got ${d}`);
+      const shifted = spectralDeviation(new Float64Array([0.9, 0.2, 0.95]), stats);
+      assert(shifted > 0.5, `large shift must give high deviation, got ${shifted}`);
     },
   ],
   [

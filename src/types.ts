@@ -142,6 +142,7 @@ export type EventType =
   | "HIGH_PACKET_LOSS"
   | "LOW_RSSI"
   | "CONFIG_CHANGE"
+  | "BASELINE_CAPTURED"
   | "SYSTEM";
 
 export type Severity = "info" | "warn" | "error";

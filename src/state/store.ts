@@ -28,7 +28,26 @@ import {
   TICK_S,
 } from "../simulation/engine";
 import { sensorRepo } from "../services/sensorRepo";
+import { baselineRepo } from "../services/baselineRepo";
 import { runSelfTests, type TestResult } from "../tests/selftest";
+import {
+  DEFAULT_MOTION_CFG,
+  MotionDetector,
+  type DetectorInput,
+  type MotionConfig,
+  type MotionResult,
+} from "../processing/detectors";
+import {
+  computeSensorStats,
+  emptyAssessment,
+  isPresence,
+  spectralDeviation,
+  stepOccupancy,
+  OCC_THRESHOLDS,
+  type OccupancyAssessment,
+  type RoomBaseline,
+} from "../processing/occupancy";
+import { clamp, clamp01 } from "../utils/format";
 import type {
   EventItem,
   EventType,
@@ -41,8 +60,27 @@ import type {
   SourceMode,
 } from "../types";
 
-export const APP_VERSION = "0.5.0";
-export const PHASE = 5;
+export const APP_VERSION = "0.6.0";
+export const PHASE = 6;
+
+/* -------- platform-layer persistence (motion detector settings) ----- */
+
+const MOTION_LS_KEY = "wifisense.motion.v1";
+
+function loadMotionCfg(): MotionConfig {
+  try {
+    const raw = localStorage.getItem(MOTION_LS_KEY);
+    if (!raw) return { ...DEFAULT_MOTION_CFG };
+    const p = JSON.parse(raw) as Partial<MotionConfig>;
+    return {
+      threshold: typeof p.threshold === "number" ? Math.min(0.95, Math.max(0.05, p.threshold)) : DEFAULT_MOTION_CFG.threshold,
+      windowTicks: typeof p.windowTicks === "number" ? Math.min(120, Math.max(5, Math.round(p.windowTicks))) : DEFAULT_MOTION_CFG.windowTicks,
+      sensitivity: typeof p.sensitivity === "number" ? Math.min(2, Math.max(0.5, p.sensitivity)) : DEFAULT_MOTION_CFG.sensitivity,
+    };
+  } catch {
+    return { ...DEFAULT_MOTION_CFG };
+  }
+}
 
 /* ----------------------- input validation -------------------------- */
 
@@ -83,6 +121,19 @@ class WiFiSenseStore {
   /** Latest self-test results (run at boot and on demand). */
   selfTests: TestResult[] = [];
 
+  /* ---------------- platform layer (Phase 5/6) ---------------- */
+  /** Operator settings for the Baseline Signal Motion Detector. */
+  motionCfg: MotionConfig = loadMotionCfg();
+  /** Per-sensor platform motion detectors (stateful, with hysteresis). */
+  private detectors = new Map<string, MotionDetector>();
+  private motionResults = new Map<string, MotionResult>();
+  /** Rolling platform-detector score trace per sensor (for the 60 s chart). */
+  private motionHistory = new Map<string, { t: number; v: number }[]>();
+  /** Per-room occupancy assessments, stepped once per tick. */
+  private occupancy = new Map<string, OccupancyAssessment>();
+  /** Persisted empty-room baselines (repository layer). */
+  baselines: Record<string, RoomBaseline>;
+
   private version = 0;
   private listeners = new Set<() => void>();
   private timer: ReturnType<typeof setInterval> | null = null;
@@ -97,6 +148,7 @@ class WiFiSenseStore {
       this.configs = configsFromFleet(this.world);
       sensorRepo.save(this.configs);
     }
+    this.baselines = baselineRepo.load() ?? {};
   }
 
   init() {
@@ -108,10 +160,121 @@ class WiFiSenseStore {
     this.timer = setInterval(() => {
       if (this.mode === "simulation" && this.cfg.running) {
         advanceTick(this.world, this.cfg);
+        this.stepPlatform();
         this.version++;
         this.listeners.forEach((l) => l());
       }
     }, TICK_S * 1000);
+  }
+
+  /**
+   * Platform detection layer — runs after the engine tick:
+   *  1. per-sensor Baseline Signal Motion Detectors (Phase 5)
+   *  2. per-room occupancy state machines against empty-room baselines (Phase 6)
+   * Never touches the deterministic engine; consumes its buffers read-only.
+   */
+  private stepPlatform(): void {
+    /* ---- motion detectors ---- */
+    const liveIds = new Set(this.world.sensors.map((s) => s.id));
+    for (const id of [...this.detectors.keys()]) {
+      if (!liveIds.has(id)) {
+        this.detectors.delete(id);
+        this.motionResults.delete(id);
+        this.motionHistory.delete(id);
+      }
+    }
+    for (const s of this.world.sensors) {
+      if (!s.online || !s.enabled || s.buffer.length < 3) continue;
+      let det = this.detectors.get(s.id);
+      if (!det) {
+        det = new MotionDetector(this.motionCfg);
+        this.detectors.set(s.id, det);
+      }
+      const win: DetectorInput[] = s.buffer.slice(-(this.motionCfg.windowTicks + 2)).map((p) => ({
+        t: p.t,
+        amp: p.amp,
+        variance: p.variance,
+      }));
+      const res = det.feed(win);
+      this.motionResults.set(s.id, res);
+      const hist = this.motionHistory.get(s.id) ?? [];
+      hist.push({ t: this.world.simTime, v: res.score });
+      if (hist.length > 900) hist.shift();
+      this.motionHistory.set(s.id, hist);
+      if (res.rose) {
+        this.pushEvent(
+          "MOTION_DETECTED",
+          "warn",
+          `Platform detector: motion onset on ${s.name} (score ${res.score.toFixed(2)})`,
+          s.id,
+          s.roomName,
+          clamp01(res.score),
+        );
+        this.log("DEBUG", "motion", `Onset on ${s.name}`, { sensor: s.id, score: +res.score.toFixed(3) });
+      }
+    }
+
+    /* ---- occupancy engines ---- */
+    for (const room of this.world.rooms) {
+      const sensors = this.world.sensors.filter((s) => s.roomId === room.id);
+      const online = sensors.filter((s) => s.online && s.enabled);
+      const baseline = this.baselines[room.id] ?? null;
+
+      let spectral = 0;
+      let withBase = 0;
+      let motionScore = 0;
+      let rssiScore = 0;
+      for (const s of online) {
+        motionScore = Math.max(motionScore, s.motionScore);
+        const sb = baseline?.sensors[s.id];
+        if (sb) {
+          spectral += spectralDeviation(s.spectrum, sb);
+          withBase++;
+        }
+      }
+      if (withBase > 0) spectral /= withBase;
+      if (baseline && online.length > 0) {
+        const rssiNow = online.reduce((a, s) => a + s.rssi, 0) / online.length;
+        rssiScore = clamp01(Math.abs(rssiNow - baseline.rssiMean) / (3 * baseline.rssiSd + 2));
+      }
+
+      const prev = this.occupancy.get(room.id) ?? null;
+      const next = stepOccupancy(prev, {
+        t: this.world.simTime,
+        sensorsOnline: online.length > 0,
+        hasBaseline: !!baseline && withBase > 0,
+        spectral,
+        rssiScore,
+        motionScore,
+        motionThresh: this.motionCfg.threshold,
+        baselineFrames: baseline ? Math.min(...Object.values(baseline.sensors).map((b) => b.frames), 120) : 0,
+        coverage: online.length > 0 ? withBase / online.length : 0,
+      });
+      this.occupancy.set(room.id, next);
+
+      // Presence transitions → shared event engine.
+      const wasPresence = prev ? isPresence(prev.state) : false;
+      const isPres = isPresence(next.state);
+      if (isPres && !wasPresence && prev) {
+        this.pushEvent(
+          "PERSON_PRESENT",
+          "info",
+          `Occupancy engine: ${room.name} → ${next.state} (algorithmic estimate)`,
+          online[0]?.id,
+          room.name,
+          next.confidence / 100,
+        );
+      } else if (!isPres && wasPresence && prev && next.state === "EMPTY") {
+        this.pushEvent(
+          "PERSON_LEFT",
+          "info",
+          `Occupancy engine: ${room.name} → EMPTY (algorithmic estimate)`,
+          online[0]?.id,
+          room.name,
+          next.confidence / 100,
+        );
+      }
+    }
   }
 
   destroy() {
@@ -285,6 +448,134 @@ class WiFiSenseStore {
 
   getSeed(): number {
     return this.cfg.seed;
+  }
+
+  /* --------------- platform layer accessors (Phase 5/6) --------------- */
+
+  detectorFor(sensorId: string): MotionDetector | undefined {
+    return this.detectors.get(sensorId);
+  }
+
+  motionResultFor(sensorId: string): MotionResult | undefined {
+    return this.motionResults.get(sensorId);
+  }
+
+  motionHistoryFor(sensorId: string): { t: number; v: number }[] {
+    return this.motionHistory.get(sensorId) ?? [];
+  }
+
+  assessmentFor(roomId: string): OccupancyAssessment {
+    return this.occupancy.get(roomId) ?? emptyAssessment();
+  }
+
+  baselineFor(roomId: string): RoomBaseline | null {
+    return this.baselines[roomId] ?? null;
+  }
+
+  setMotionCfg(patch: Partial<MotionConfig>): void {
+    this.motionCfg = {
+      threshold: clamp(patch.threshold ?? this.motionCfg.threshold, 0.05, 0.95),
+      windowTicks: Math.min(120, Math.max(5, Math.round(patch.windowTicks ?? this.motionCfg.windowTicks))),
+      sensitivity: Math.min(2, Math.max(0.5, patch.sensitivity ?? this.motionCfg.sensitivity)),
+    };
+    for (const det of this.detectors.values()) det.update(this.motionCfg);
+    try {
+      localStorage.setItem(MOTION_LS_KEY, JSON.stringify(this.motionCfg));
+    } catch {
+      /* non-fatal */
+    }
+    this.log("INFO", "motion", "Motion detector settings updated", {
+      threshold: this.motionCfg.threshold,
+      window: this.motionCfg.windowTicks,
+      gain: this.motionCfg.sensitivity,
+    });
+    this.bump();
+  }
+
+  resetMotionDetectors(): void {
+    for (const det of this.detectors.values()) det.reset();
+    this.log("INFO", "motion", "Motion detector states reset by operator");
+    this.bump();
+  }
+
+  /**
+   * Capture an empty-room baseline from recent spectral frames.
+   * Returns the frame count used, or an error explaining why capture failed.
+   */
+  captureRoomBaseline(roomId: string): { ok: true; frames: number; warned: boolean } | { ok: false; error: string } {
+    const room = this.world.rooms.find((r) => r.id === roomId);
+    if (!room) return { ok: false, error: "Unknown room" };
+    const donors = this.world.sensors.filter((s) => s.roomId === roomId && s.online && s.enabled && s.specHist.length >= 60);
+    if (donors.length === 0)
+      return { ok: false, error: "No online sensor in this room has ≥60 buffered frames yet — keep streaming and retry" };
+
+    const sensors: RoomBaseline["sensors"] = {};
+    let frames = Infinity;
+    let rssiSum = 0;
+    let rssiSq = 0;
+    let rssiN = 0;
+    let motionAcc = 0;
+    for (const s of donors) {
+      const stats = computeSensorStats(s.specHist.slice(-120), this.cfg.subcarriers);
+      sensors[s.id] = stats;
+      frames = Math.min(frames, stats.frames);
+      for (const p of s.buffer.slice(-120)) {
+        rssiSum += p.rssi;
+        rssiSq += p.rssi * p.rssi;
+        rssiN++;
+      }
+      motionAcc += s.motionScore;
+    }
+    const rssiMean = rssiN > 0 ? rssiSum / rssiN : -50;
+    const rssiSd = rssiN > 0 ? Math.sqrt(Math.max(0, rssiSq / rssiN - rssiMean * rssiMean)) : 1;
+    const motionFloor = motionAcc / donors.length;
+    const warned = motionFloor > this.motionCfg.threshold * 0.8;
+
+    this.baselines = {
+      ...this.baselines,
+      [roomId]: {
+        roomId,
+        roomName: room.name,
+        capturedAt: Date.now(),
+        simTime: this.world.simTime,
+        sensors,
+        rssiMean,
+        rssiSd,
+        motionFloor,
+      },
+    };
+    baselineRepo.save(this.baselines);
+    // Force a clean re-evaluation against the fresh reference.
+    this.occupancy.set(roomId, emptyAssessment());
+    this.pushEvent(
+      "BASELINE_CAPTURED",
+      warned ? "warn" : "info",
+      warned
+        ? `${room.name}: baseline captured while motion may have been present — estimates may be biased`
+        : `${room.name}: empty-room baseline captured (${frames} frames × ${donors.length} node${donors.length > 1 ? "s" : ""})`,
+      donors[0].id,
+      room.name,
+    );
+    this.log(warned ? "WARNING" : "INFO", "occupancy", "Empty-room baseline captured", {
+      room: room.name,
+      frames,
+      nodes: donors.length,
+    });
+    this.bump();
+    return { ok: true, frames, warned };
+  }
+
+  clearRoomBaseline(roomId: string): void {
+    if (!this.baselines[roomId]) return;
+    const name = this.baselines[roomId].roomName;
+    const next = { ...this.baselines };
+    delete next[roomId];
+    this.baselines = next;
+    baselineRepo.save(this.baselines);
+    this.occupancy.set(roomId, emptyAssessment());
+    this.pushEvent("BASELINE_CAPTURED", "info", `${name}: baseline cleared — room returns to UNKNOWN`, undefined, name);
+    this.log("INFO", "occupancy", "Room baseline cleared", { room: name });
+    this.bump();
   }
 
   /** Drop telemetry buffers (Live CSI “Clear”). Never touches configs. */
