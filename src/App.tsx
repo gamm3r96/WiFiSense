@@ -9,6 +9,7 @@ import LogsPage from "./pages/LogsPage";
 import PlaceholderPage from "./pages/PlaceholderPage";
 import SensorsPage from "./pages/SensorsPage";
 import SettingsPage from "./pages/SettingsPage";
+import SignalAnalysisPage from "./pages/SignalAnalysisPage";
 import { sim } from "./state/store";
 
 export default function App() {
@@ -28,12 +29,14 @@ export default function App() {
           {page === "dashboard" && <Dashboard go={setPage} />}
           {page === "sensors" && <SensorsPage />}
           {page === "live-csi" && <LiveCSIPage />}
+          {page === "analysis" && <SignalAnalysisPage />}
           {page === "events" && <EventsPage />}
           {page === "logs" && <LogsPage />}
           {page === "settings" && <SettingsPage />}
           {page !== "dashboard" &&
             page !== "sensors" &&
             page !== "live-csi" &&
+            page !== "analysis" &&
             page !== "events" &&
             page !== "logs" &&
             page !== "settings" && <PlaceholderPage page={page} />}

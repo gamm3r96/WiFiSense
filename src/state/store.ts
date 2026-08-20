@@ -41,8 +41,8 @@ import type {
   SourceMode,
 } from "../types";
 
-export const APP_VERSION = "0.3.0";
-export const PHASE = 3;
+export const APP_VERSION = "0.4.0";
+export const PHASE = 4;
 
 /* ----------------------- input validation -------------------------- */
 
@@ -352,6 +352,12 @@ class WiFiSenseStore {
     this.world.logs = [
       { id: this.world.nextId++, t: Date.now(), level: "INFO", component: "logging", message: "Log buffer cleared by operator" } as LogItem,
     ];
+    this.bump();
+  }
+
+  /** Structured log entry from UI/service layers (public, version-bumping). */
+  logPublic(level: LogItem["level"], component: string, message: string, meta?: Record<string, string | number>) {
+    this.log(level, component, message, meta);
     this.bump();
   }
 

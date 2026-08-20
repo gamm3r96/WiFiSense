@@ -254,3 +254,18 @@ input[type="number"]:focus {
   background: rgba(24, 34, 51, 0.9);
   color: var(--color-txt);
 }
+
+@keyframes dashFlow {
+  to { stroke-dashoffset: -12; }
+}
+.dash-flow {
+  animation: dashFlow 0.9s linear infinite;
+}
+
+@keyframes stagePulse {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(60, 230, 164, 0.25); }
+  50% { box-shadow: 0 0 0 3px rgba(60, 230, 164, 0); }
+}
+.stage-active {
+  animation: stagePulse 1.8s ease-in-out infinite;
+}

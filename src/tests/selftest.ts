@@ -21,6 +21,18 @@ import {
   toJSON,
 } from "../utils/exporter";
 import { frameRate, lowPass, movingAverage, varianceOf } from "../utils/signal";
+import {
+  applyFilter,
+  energy,
+  highPass,
+  medianFilter,
+  normalize,
+  peakFrequency,
+  spectrum,
+  stdDev,
+  unwrapPhase,
+  variance as dspVariance,
+} from "../processing/dsp";
 import type { SensorInput, SimConfig, SimWorld, TelemetryPoint } from "../types";
 
 export interface TestResult {
@@ -251,6 +263,73 @@ const CASES: Array<[string, (store: StoreUnderTest) => void]> = [
       applyFleetConfigs(w, cfg, configs);
       assert(target!.sensorIds.includes(configs[0].id), "target room missing sensor");
       assert(w.sensors[0].roomName === target!.name, "sensor roomName not synced");
+    },
+  ],
+  [
+    "dsp · median filter removes impulse noise",
+    () => {
+      const clean = Array.from({ length: 40 }, (_, i) => Math.sin(i * 0.3));
+      const noisy = clean.slice();
+      noisy[10] += 50;
+      noisy[25] -= 40;
+      const out = medianFilter(noisy, 5);
+      assert(Math.abs(out[10] - clean[10]) < 2, `impulse at 10 not suppressed (${out[10].toFixed(2)})`);
+      assert(Math.abs(out[25] - clean[25]) < 2, `impulse at 25 not suppressed (${out[25].toFixed(2)})`);
+    },
+  ],
+  [
+    "dsp · high-pass removes DC offset",
+    () => {
+      const dc = Array.from({ length: 300 }, () => 5);
+      const out = highPass(dc, 0.2);
+      const tail = out.slice(-50);
+      const m = tail.reduce((a, b) => a + b, 0) / tail.length;
+      assert(Math.abs(m) < 0.5, `DC not removed (residual mean ${m.toFixed(3)})`);
+    },
+  ],
+  [
+    "dsp · phase unwrap removes 2π discontinuities",
+    () => {
+      const wrapped = Array.from({ length: 100 }, (_, i) => {
+        const p = i * 0.25;
+        return ((p + Math.PI) % (2 * Math.PI)) - Math.PI; // wrap to (−π, π]
+      });
+      const out = unwrapPhase(wrapped);
+      let maxJump = 0;
+      for (let i = 1; i < out.length; i++) maxJump = Math.max(maxJump, Math.abs(out[i] - out[i - 1]));
+      assert(maxJump < Math.PI, `unwrap left a jump of ${maxJump.toFixed(2)} rad`);
+    },
+  ],
+  [
+    "dsp · FFT peak frequency of a known tone",
+    () => {
+      const fs = 100; // Hz
+      const f0 = 7; // Hz
+      const n = 512;
+      const sig = Array.from({ length: n }, (_, i) => Math.sin((2 * Math.PI * f0 * i) / fs));
+      const spec = spectrum(sig, fs);
+      const pk = peakFrequency(spec);
+      assert(Math.abs(pk - f0) < 0.5, `peak ${pk.toFixed(2)} Hz, expected ~${f0} Hz`);
+    },
+  ],
+  [
+    "dsp · normalisation maps to [0,1] and handles flat input",
+    () => {
+      const v = [3, 1, 4, 1, 5, 9, 2, 6];
+      const out = normalize(v);
+      assert(Math.min(...out) === 0 && Math.max(...out) === 1, "range not [0,1]");
+      const flat = normalize([2, 2, 2]);
+      assert(flat.every((x) => Math.abs(x - 0.5) < 1e-9), "flat input not mapped to 0.5");
+    },
+  ],
+  [
+    "dsp · feature stats are internally consistent",
+    () => {
+      const v = Array.from({ length: 200 }, (_, i) => 2 + Math.sin(i * 0.2));
+      assert(Math.abs(stdDev(v) - Math.sqrt(dspVariance(v))) < 1e-12, "stdDev ≠ √variance");
+      assert(energy(v) > 0, "energy must be positive");
+      const f = applyFilter(v, { kind: "movingAverage", window: 7 });
+      assert(f.length === v.length, "filter changed length");
     },
   ],
   [
