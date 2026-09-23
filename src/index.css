@@ -255,6 +255,208 @@ input[type="number"]:focus {
   color: var(--color-txt);
 }
 
+/* ---------- mobile responsive ---------- */
+
+/* Mobile-first responsive utilities */
+@media (max-width: 768px) {
+  /* Reduce base font size for mobile */
+  body {
+    font-size: 13px;
+  }
+
+  /* Panel adjustments */
+  .panel {
+    border-radius: 4px;
+  }
+
+  .panel-head {
+    padding: 8px 12px;
+    gap: 8px;
+  }
+
+  .panel-title {
+    font-size: 11px;
+    letter-spacing: 0.12em;
+  }
+
+  /* Button touch targets */
+  .btn {
+    padding: 8px 12px;
+    font-size: 11px;
+    min-height: 36px;
+  }
+
+  /* Input touch targets */
+  .select,
+  input[type="text"],
+  input[type="number"] {
+    padding: 8px 10px;
+    font-size: 13px;
+    min-height: 36px;
+  }
+
+  /* Table horizontal scroll on mobile */
+  table {
+    font-size: 12px;
+  }
+
+  /* Chips smaller on mobile */
+  .chip {
+    font-size: 9px;
+    padding: 2px 6px;
+  }
+
+  /* Labels smaller */
+  .lbl {
+    font-size: 9px;
+    letter-spacing: 0.14em;
+  }
+
+  /* Sidebar overlay on mobile */
+  aside {
+    position: fixed;
+    left: -280px;
+    top: 54px;
+    bottom: 0;
+    z-index: 40;
+    width: 280px;
+    transition: left 0.3s ease;
+    box-shadow: 4px 0 24px rgba(0, 0, 0, 0.5);
+  }
+
+  aside.mobile-open {
+    left: 0;
+  }
+
+  /* Mobile menu backdrop */
+  .mobile-backdrop {
+    position: fixed;
+    inset: 54px 0 0 0;
+    background: rgba(0, 0, 0, 0.6);
+    z-index: 39;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.3s ease;
+  }
+
+  .mobile-backdrop.active {
+    opacity: 1;
+    pointer-events: auto;
+  }
+
+  /* Hamburger menu button */
+  .mobile-menu-btn {
+    display: flex;
+  }
+
+  /* Reduce padding on mobile */
+  .p-4 {
+    padding: 12px;
+  }
+
+  .gap-3 {
+    gap: 8px;
+  }
+
+  /* Stack grids on mobile */
+  .grid-cols-12 {
+    grid-template-columns: 1fr;
+  }
+
+  .grid-cols-2 {
+    grid-template-columns: 1fr;
+  }
+
+  /* KPI cards stack */
+  .grid-cols-6 {
+    grid-template-columns: repeat(2, 1fr);
+  }
+
+  /* Hide non-essential columns on mobile */
+  .mobile-hide {
+    display: none;
+  }
+
+  /* Reduce chart heights */
+  canvas {
+    max-height: 200px;
+  }
+
+  /* Smaller modals on mobile */
+  .modal-content {
+    max-width: 95vw;
+    max-height: 90vh;
+    margin: 16px;
+  }
+}
+
+/* Tablet adjustments */
+@media (min-width: 769px) and (max-width: 1024px) {
+  .grid-cols-6 {
+    grid-template-columns: repeat(3, 1fr);
+  }
+
+  .mobile-hide-tablet {
+    display: none;
+  }
+}
+
+/* Desktop - hide mobile menu button */
+@media (min-width: 769px) {
+  .mobile-menu-btn {
+    display: none;
+  }
+
+  aside {
+    position: relative;
+    left: 0;
+    box-shadow: none;
+  }
+}
+
+/* Touch-friendly hover states */
+@media (hover: none) {
+  .nav-item:active {
+    background: rgba(24, 34, 51, 0.9);
+  }
+
+  .btn:active {
+    transform: scale(0.98);
+  }
+}
+
+/* Landscape mobile optimization */
+@media (max-width: 768px) and (orientation: landscape) {
+  canvas {
+    max-height: 180px;
+  }
+
+  .panel {
+    margin-bottom: 8px;
+  }
+}
+
+/* Safe area insets for notched devices */
+@supports (padding: max(0px)) {
+  @media (max-width: 768px) {
+    header {
+      padding-left: max(16px, env(safe-area-inset-left));
+      padding-right: max(16px, env(safe-area-inset-right));
+    }
+
+    aside {
+      padding-top: max(0px, env(safe-area-inset-top));
+      padding-bottom: max(0px, env(safe-area-inset-bottom));
+    }
+
+    main {
+      padding-left: max(0px, env(safe-area-inset-left));
+      padding-right: max(0px, env(safe-area-inset-right));
+      padding-bottom: max(0px, env(safe-area-inset-bottom));
+    }
+  }
+}
+
 @keyframes dashFlow {
   to { stroke-dashoffset: -12; }
 }

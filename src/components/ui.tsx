@@ -6,7 +6,7 @@ import { clamp01 } from "../utils/format";
 
 export type IconName =
   | "grid" | "chip" | "wave" | "zap" | "user" | "pulse" | "database"
-  | "sliders" | "cpu" | "map" | "list" | "terminal" | "gear" | "alert"
+  | "sliders" | "cpu" | "map" | "list" | "menu" | "terminal" | "gear" | "alert"
   | "play" | "pause" | "antenna" | "chevron" | "download" | "flask"
   | "x" | "plug" | "seed" | "record" | "stop" | "tag" | "book";
 
@@ -68,6 +68,11 @@ const ICONS: Record<IconName, ReactNode> = {
       <circle cx="4" cy="6" r="1" />
       <circle cx="4" cy="12" r="1" />
       <circle cx="4" cy="18" r="1" />
+    </>
+  ),
+  menu: (
+    <>
+      <path d="M3 6h18M3 12h18M3 18h18" />
     </>
   ),
   terminal: (

@@ -28,7 +28,15 @@ function Wordmark() {
   );
 }
 
-export default function TopNav({ page, go }: { page: PageId; go: (p: PageId) => void }) {
+export default function TopNav({
+  page,
+  go,
+  onMenuClick,
+}: {
+  page: PageId;
+  go: (p: PageId) => void;
+  onMenuClick?: () => void;
+}) {
   useSimVersion();
   const [now, setNow] = useState(Date.now());
   useEffect(() => {
@@ -42,6 +50,15 @@ export default function TopNav({ page, go }: { page: PageId; go: (p: PageId) => 
 
   return (
     <header className="flex h-[54px] shrink-0 items-center gap-4 border-b border-line bg-bg2/90 px-4 backdrop-blur-sm">
+      {/* Mobile menu button */}
+      <button
+        className="mobile-menu-btn btn !px-2 !py-1.5 md:hidden"
+        onClick={onMenuClick}
+        aria-label="Toggle navigation menu"
+      >
+        <Icon name="menu" size={18} />
+      </button>
+
       <Wordmark />
 
       <span className="mx-1 hidden h-6 w-px bg-line md:block" />

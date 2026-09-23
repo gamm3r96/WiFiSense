@@ -2,14 +2,29 @@ import { NAV, type PageId } from "../nav";
 import { PHASE, sim, useSimVersion } from "../state/store";
 import { Dot, Icon } from "./ui";
 
-export default function Sidebar({ page, go }: { page: PageId; go: (p: PageId) => void }) {
+export default function Sidebar({
+  page,
+  go,
+  mobileOpen = false,
+  onClose,
+}: {
+  page: PageId;
+  go: (p: PageId) => void;
+  mobileOpen?: boolean;
+  onClose?: () => void;
+}) {
   useSimVersion();
   const groups = ["Operations", "Sensing", "Data", "System"] as const;
   const online = sim.world.sensors.filter((s) => s.online).length;
   const total = sim.world.sensors.length;
 
+  const handleNav = (id: PageId) => {
+    go(id);
+    onClose?.(); // Close sidebar on mobile after navigation
+  };
+
   return (
-    <aside className="flex w-[52px] shrink-0 flex-col border-r border-line bg-bg2/80 md:w-[218px]">
+    <aside className={`flex w-[52px] shrink-0 flex-col border-r border-line bg-bg2/80 md:w-[218px] ${mobileOpen ? "mobile-open" : ""}`}>
       <nav className="flex-1 overflow-y-auto px-2 py-3">
         {groups.map((g) => (
           <div key={g} className="mb-4">
@@ -20,7 +35,7 @@ export default function Sidebar({ page, go }: { page: PageId; go: (p: PageId) =>
               return (
                 <button
                   key={n.id}
-                  onClick={() => go(n.id)}
+                  onClick={() => handleNav(n.id)}
                   title={ready ? n.label : `${n.label} — Phase ${n.phase}`}
                   className={`nav-item group relative mb-0.5 flex w-full items-center gap-2.5 rounded-[5px] px-2.5 py-[7px] text-left text-[13px] ${
                     active ? "bg-raise text-txt" : "text-dim"

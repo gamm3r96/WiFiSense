@@ -23,17 +23,28 @@ import { sim } from "./state/store";
 
 export default function App() {
   const [page, setPage] = useState<PageId>("dashboard");
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
   useEffect(() => {
     sim.init();
     return () => sim.destroy();
   }, []);
 
+  const toggleMobileMenu = () => setMobileMenuOpen(!mobileMenuOpen);
+  const closeMobileMenu = () => setMobileMenuOpen(false);
+
   return (
     <div className="flex h-full flex-col overflow-hidden">
-      <TopNav page={page} go={setPage} />
+      <TopNav page={page} go={setPage} onMenuClick={toggleMobileMenu} />
+      
+      {/* Mobile backdrop */}
+      <div
+        className={`mobile-backdrop md:hidden ${mobileMenuOpen ? "active" : ""}`}
+        onClick={closeMobileMenu}
+      />
+      
       <div className="flex min-h-0 flex-1">
-        <Sidebar page={page} go={setPage} />
+        <Sidebar page={page} go={setPage} mobileOpen={mobileMenuOpen} onClose={closeMobileMenu} />
         <main className="min-w-0 flex-1 overflow-y-auto">
           {page === "dashboard" && <Dashboard go={setPage} />}
           {page === "sensors" && <SensorsPage />}
