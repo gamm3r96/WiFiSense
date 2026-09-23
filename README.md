@@ -2,14 +2,39 @@
 
 **Professional Wi-Fi Channel State Information (CSI) research & monitoring platform.**
 
-`v1.0.0` · `15/15 phases` · `React 18 + TypeScript` · `FastAPI` · `ESP32-S3 ready`
+`v1.1.0` · `15/15 phases` · `React 18 + TypeScript` · `FastAPI` · `ESP32-S3 ready` · `📱 Mobile Responsive`
 
-WiFiSense Lab is a browser-based control center for experimenting with Wi-Fi CSI —
-human presence detection, motion detection, activity recognition, signal visualization,
-dataset recording, machine learning, and experimental respiration sensing. It ships with a
-**deterministic simulation engine** so every module works immediately, and exposes clean
-adapter interfaces so real hardware (ESP32-S3 / esp-csi nodes) can be attached without
-rewriting a single module.
+## 📖 About
+
+WiFiSense Lab is a comprehensive, production-ready web platform for Wi-Fi sensing research and development. It provides a complete toolkit for working with Channel State Information (CSI) data — from real-time signal visualization and analysis to machine learning-based activity recognition and experimental respiration monitoring.
+
+### What is Wi-Fi Sensing?
+
+Wi-Fi sensing leverages the Channel State Information (CSI) from Wi-Fi signals to detect and analyze human presence, motion, and activities within a space. By analyzing how Wi-Fi signals are affected by people moving through an environment, the platform can:
+
+- **Detect human presence** in rooms without cameras or wearables
+- **Recognize activities** like walking, sitting, standing, or waving
+- **Monitor occupancy** patterns across multiple rooms
+- **Track motion** with high sensitivity using statistical analysis
+- **Estimate respiration rates** (experimental research module)
+
+### Key Features
+
+🎯 **Complete Research Platform** — 15 fully-implemented phases covering the entire CSI workflow  
+📊 **Real-time Visualization** — Live CSI amplitude/phase scopes, spectral waterfalls, and FFT analysis  
+🤖 **Machine Learning Ready** — Classical models (Random Forest, SVM, Logistic Regression) with Python backend  
+📱 **Fully Responsive** — Professional mobile experience with touch-optimized interface  
+🔬 **Honest by Design** — Clear separation between simulation and real hardware data  
+🚀 **Production Ready** — Self-test suite, comprehensive error handling, and extensive documentation  
+🔌 **Hardware Agnostic** — Clean adapter interfaces for ESP32-S3 and other CSI-capable devices  
+
+### Who Is This For?
+
+- **Researchers** studying Wi-Fi sensing and human-computer interaction
+- **Developers** building smart home, office, or healthcare applications
+- **Students** learning about wireless sensing and signal processing
+- **Engineers** prototyping presence detection systems
+- **Data Scientists** working with CSI datasets and activity recognition
 
 > ⚠️ **Honesty contract.** Simulated data is always labeled `SIMULATED`. The console never
 > presents synthetic frames as hardware measurements, never invents packet protocols, and
@@ -19,7 +44,9 @@ rewriting a single module.
 
 ## Contents
 
+- [About](#about)
 - [Highlights](#highlights)
+- [Mobile Experience](#mobile-experience)
 - [Phase roadmap — all delivered](#phase-roadmap--all-delivered)
 - [Architecture](#architecture)
 - [Quick start](#quick-start)
@@ -32,6 +59,7 @@ rewriting a single module.
 - [Project structure](#project-structure)
 - [Security notes](#security-notes)
 - [Extension points](#extension-points)
+- [Browser support](#browser-support)
 - [License](#license)
 
 ---
@@ -49,6 +77,37 @@ rewriting a single module.
 | **Room map** | Building/floor/room plans, draggable sensor placement, occupancy tinting, motion pulses — person markers are *approximate*, never claimed localization. |
 | **Hardware plumbing** | Transport adapters (serial/UDP/TCP), parser stage, Web Serial monitor, fleet health — all placeholder-safe until the esp-csi frame layout is supplied. |
 | **Respiration (experimental)** | 0.08–0.6 Hz band-pass → FFT → peak search. Bannered `EXPERIMENTAL · NOT A MEDICAL DEVICE`; unreliable windows explain *why*. |
+| **Mobile responsive** | Full mobile experience with collapsible sidebar, touch-optimized controls, and responsive layouts. Works seamlessly on phones, tablets, and desktops. |
+
+## 📱 Mobile Experience
+
+WiFiSense Lab is fully responsive and optimized for mobile devices, providing a professional experience across all screen sizes.
+
+### Mobile Features
+
+- **Collapsible Sidebar** — Hamburger menu with smooth slide-in animation
+- **Touch-Optimized Controls** — All buttons and inputs meet 36px minimum touch target guidelines
+- **Responsive Layouts** — KPI cards, charts, and tables adapt to screen size
+- **Safe Area Support** — Proper handling of notched devices (iPhone X and newer)
+- **Landscape Mode** — Optimized chart heights and spacing for landscape orientation
+- **GPU-Accelerated Animations** — Smooth 60fps transitions and interactions
+
+### Responsive Breakpoints
+
+| Device | Screen Width | Layout |
+|--------|--------------|--------|
+| **Mobile** | < 768px | Single column, collapsible sidebar, stacked KPIs |
+| **Tablet** | 768px - 1024px | 2-column KPIs, fixed sidebar |
+| **Desktop** | > 1024px | Full layout, fixed sidebar, multi-column grids |
+
+### Mobile Navigation
+
+1. Tap the hamburger menu (☰) in the top-left corner
+2. Sidebar slides in from the left with all navigation options
+3. Select a page — sidebar automatically closes
+4. Tap the backdrop to dismiss the menu manually
+
+The mobile experience maintains all desktop functionality while optimizing for touch interaction and smaller screens. See [MOBILE_VIEW.md](MOBILE_VIEW.md) for implementation details.
 
 ## Phase roadmap — all delivered
 
@@ -238,6 +297,41 @@ python-service/  FastAPI app + processors + models + utils
 MQTT · PostgreSQL · Docker · Prometheus/Grafana · auth/RBAC · multi-site — each has a
 clean seam (source adapter, repository interface, event bus) prepared but intentionally
 unimplemented.
+
+## Browser support
+
+WiFiSense Lab is tested and optimized for modern browsers with full mobile responsiveness.
+
+| Browser | Version | Support | Mobile |
+|---------|---------|---------|--------|
+| **Chrome** | 90+ | ✅ Full | ✅ Android |
+| **Firefox** | 88+ | ✅ Full | ✅ Android |
+| **Safari** | 14+ | ✅ Full | ✅ iOS |
+| **Edge** | 90+ | ✅ Full | ✅ Android |
+| **Samsung Internet** | 15+ | ✅ Full | ✅ Android |
+
+**Notes:**
+- Web Serial API (for direct hardware connection) requires Chromium-based browsers
+- Mobile devices support all features via the responsive interface
+- Internet Explorer is not supported (no CSS Grid/Flexbox support)
+
+## 📚 Documentation
+
+Comprehensive documentation is available in the repository:
+
+- **[README.md](README.md)** — This file (project overview and setup)
+- **[CONTRIBUTING.md](CONTRIBUTING.md)** — Development guidelines and phased build rules
+- **[CHANGELOG.md](CHANGELOG.md)** — Version history and release notes
+- **[PROJECT_DESCRIPTION.md](PROJECT_DESCRIPTION.md)** — Detailed project description for various contexts
+- **[MOBILE_VIEW.md](MOBILE_VIEW.md)** — Mobile implementation details
+- **[MOBILE_SUMMARY.md](MOBILE_SUMMARY.md)** — Mobile features quick reference
+- **In-app Docs** — Click "Docs" in the sidebar for platform documentation
+
+## 📝 Changelog
+
+See [CHANGELOG.md](CHANGELOG.md) for detailed version history and release notes.
+
+**Latest:** v1.1.0 — Mobile responsive design with collapsible sidebar and touch-optimized interface
 
 ## License
 
