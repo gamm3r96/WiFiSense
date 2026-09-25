@@ -1,7 +1,7 @@
 {
   "name": "WiFiSense Lab",
   "short_name": "WiFiSense",
-  "description": "Professional Wi-Fi CSI sensing platform for human presence detection, activity recognition, and signal analysis",
+  "description": "Professional Wi-Fi CSI sensing platform",
   "start_url": "/",
   "display": "standalone",
   "background_color": "#0a0e14",
@@ -11,26 +11,7 @@
     {
       "src": "/icon.svg",
       "sizes": "any",
-      "type": "image/svg+xml",
-      "purpose": "any"
-    }
-  ],
-  "categories": ["developer", "productivity", "utilities"],
-  "shortcuts": [
-    {
-      "name": "Dashboard",
-      "url": "/?page=dashboard",
-      "description": "View system dashboard"
-    },
-    {
-      "name": "Live CSI",
-      "url": "/?page=live-csi",
-      "description": "Monitor live CSI data"
-    },
-    {
-      "name": "Sensors",
-      "url": "/?page=sensors",
-      "description": "Manage sensor fleet"
+      "type": "image/svg+xml"
     }
   ]
 }

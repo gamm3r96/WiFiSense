@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { X, Download, Smartphone } from 'lucide-react';
+import { Icon } from './ui';
 
 interface InstallPromptProps {
   onDismiss?: () => void;
@@ -19,26 +19,21 @@ export function InstallPrompt({ onDismiss }: InstallPromptProps) {
       }
     } catch (e) {
       // matchMedia not supported
-      console.log('PWA: matchMedia not supported');
+      return;
     }
 
     // Listen for beforeinstallprompt event
-    const handler = (e: Event) => {
+    const handler = (e: any) => {
       e.preventDefault();
       setDeferredPrompt(e);
       
-      // Show prompt after 3 seconds if not dismissed
-      const timer = setTimeout(() => {
+      // Show prompt after 3 seconds
+      setTimeout(() => {
         setShowPrompt(true);
       }, 3000);
-      
-      return () => clearTimeout(timer);
     };
 
-    // Only add listener if beforeinstallprompt is supported
-    if ('onbeforeinstallprompt' in window) {
-      window.addEventListener('beforeinstallprompt', handler);
-    }
+    window.addEventListener('beforeinstallprompt', handler);
 
     // Check if app was installed
     const appInstalledHandler = () => {
@@ -50,26 +45,15 @@ export function InstallPrompt({ onDismiss }: InstallPromptProps) {
     window.addEventListener('appinstalled', appInstalledHandler);
 
     return () => {
-      if ('onbeforeinstallprompt' in window) {
-        window.removeEventListener('beforeinstallprompt', handler);
-      }
+      window.removeEventListener('beforeinstallprompt', handler);
       window.removeEventListener('appinstalled', appInstalledHandler);
     };
   }, []);
 
   const handleInstall = async () => {
-    if (!deferredPrompt) {
-      console.log('PWA: No install prompt available');
-      return;
-    }
+    if (!deferredPrompt) return;
 
     try {
-      // Check if prompt method exists
-      if (typeof deferredPrompt.prompt !== 'function') {
-        console.log('PWA: prompt method not available');
-        return;
-      }
-
       deferredPrompt.prompt();
       const { outcome } = await deferredPrompt.userChoice;
       
@@ -79,7 +63,7 @@ export function InstallPrompt({ onDismiss }: InstallPromptProps) {
         console.log('User dismissed the install prompt');
       }
     } catch (error) {
-      console.error('PWA: Install error', error);
+      console.error('Install error:', error);
     }
     
     setDeferredPrompt(null);
@@ -97,43 +81,45 @@ export function InstallPrompt({ onDismiss }: InstallPromptProps) {
   }
 
   return (
-    <div className="fixed bottom-4 left-4 right-4 md:left-auto md:right-4 md:w-96 z-50 animate-in slide-in-from-bottom fade-in duration-300">
-      <div className="bg-panel border border-line rounded-lg shadow-2xl overflow-hidden">
+    <div className="fixed bottom-4 left-4 right-4 md:left-auto md:right-4 md:w-96 z-50">
+      <div className="panel border border-line rounded-lg shadow-2xl overflow-hidden">
         {/* Header */}
-        <div className="bg-gradient-to-r from-acc/10 to-blue/10 px-4 py-3 border-b border-line">
+        <div className="px-4 py-3 border-b border-line bg-raise">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2">
-              <Smartphone className="w-5 h-5 text-acc" />
-              <h3 className="font-semibold text-txt">Install WiFiSense Lab</h3>
+              <Icon name="antenna" size={20} className="text-acc" />
+              <h3 className="font-disp text-[14px] font-semibold tracking-wide text-txt">
+                Install WiFiSense Lab
+              </h3>
             </div>
             <button
               onClick={handleDismiss}
               className="text-faint hover:text-txt transition-colors"
               aria-label="Dismiss"
             >
-              <X className="w-5 h-5" />
+              <Icon name="x" size={18} />
             </button>
           </div>
         </div>
 
         {/* Content */}
         <div className="p-4 space-y-4">
-          <p className="text-sm text-dim">
+          <p className="text-[12.5px] leading-relaxed text-dim">
             Install WiFiSense Lab on your device for quick access and offline support.
           </p>
 
-          <div className="space-y-2 text-xs text-faint">
+          <div className="space-y-2">
             <div className="flex items-center gap-2">
-              <div className="w-1.5 h-1.5 rounded-full bg-acc"></div>
-              <span>Fast, native-like experience</span>
+              <span className="inline-block h-1.5 w-1.5 rounded-full bg-acc" />
+              <span className="text-[11.5px] text-faint">Fast, native-like experience</span>
             </div>
             <div className="flex items-center gap-2">
-              <div className="w-1.5 h-1.5 rounded-full bg-acc"></div>
-              <span>Works offline with cached data</span>
+              <span className="inline-block h-1.5 w-1.5 rounded-full bg-acc" />
+              <span className="text-[11.5px] text-faint">Works offline with cached data</span>
             </div>
             <div className="flex items-center gap-2">
-              <div className="w-1.5 h-1.5 rounded-full bg-acc"></div>
-              <span>Access from home screen</span>
+              <span className="inline-block h-1.5 w-1.5 rounded-full bg-acc" />
+              <span className="text-[11.5px] text-faint">Access from home screen</span>
             </div>
           </div>
 
@@ -141,14 +127,14 @@ export function InstallPrompt({ onDismiss }: InstallPromptProps) {
           <div className="flex gap-2">
             <button
               onClick={handleInstall}
-              className="flex-1 btn btn-acc flex items-center justify-center gap-2"
+              className="btn btn-acc flex-1"
             >
-              <Download className="w-4 h-4" />
+              <Icon name="download" size={14} />
               Install Now
             </button>
             <button
               onClick={handleDismiss}
-              className="px-4 btn"
+              className="btn px-4"
             >
               Later
             </button>
