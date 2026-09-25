@@ -1,0 +1,50 @@
+<svg width="512" height="512" viewBox="0 0 512 512" xmlns="http://www.w3.org/2000/svg">
+  <!-- Background -->
+  <rect width="512" height="512" fill="#0a0e14" rx="64"/>
+  
+  <!-- Wi-Fi Signal Arcs -->
+  <g transform="translate(256, 320)">
+    <!-- Outer arc -->
+    <path d="M -160 0 A 160 160 0 0 1 160 0" 
+          fill="none" 
+          stroke="#3ce6a4" 
+          stroke-width="24" 
+          stroke-linecap="round"
+          opacity="0.4"/>
+    
+    <!-- Middle arc -->
+    <path d="M -110 0 A 110 110 0 0 1 110 0" 
+          fill="none" 
+          stroke="#3ce6a4" 
+          stroke-width="24" 
+          stroke-linecap="round"
+          opacity="0.7"/>
+    
+    <!-- Inner arc -->
+    <path d="M -60 0 A 60 60 0 0 1 60 0" 
+          fill="none" 
+          stroke="#3ce6a4" 
+          stroke-width="24" 
+          stroke-linecap="round"/>
+    
+    <!-- Center dot -->
+    <circle cx="0" cy="0" r="16" fill="#3ce6a4"/>
+  </g>
+  
+  <!-- Data visualization elements -->
+  <g transform="translate(256, 180)" opacity="0.6">
+    <circle cx="-80" cy="0" r="6" fill="#3ce6a4"/>
+    <circle cx="-40" cy="-20" r="6" fill="#3ce6a4"/>
+    <circle cx="0" cy="-30" r="6" fill="#3ce6a4"/>
+    <circle cx="40" cy="-20" r="6" fill="#3ce6a4"/>
+    <circle cx="80" cy="0" r="6" fill="#3ce6a4"/>
+    
+    <!-- Connecting lines -->
+    <path d="M -80 0 L -40 -20 L 0 -30 L 40 -20 L 80 0" 
+          fill="none" 
+          stroke="#3ce6a4" 
+          stroke-width="3" 
+          stroke-linecap="round" 
+          stroke-linejoin="round"/>
+  </g>
+</svg>
