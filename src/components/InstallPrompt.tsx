@@ -12,9 +12,14 @@ export function InstallPrompt({ onDismiss }: InstallPromptProps) {
 
   useEffect(() => {
     // Check if already installed
-    if (window.matchMedia('(display-mode: standalone)').matches) {
-      setIsInstalled(true);
-      return;
+    try {
+      if (window.matchMedia('(display-mode: standalone)').matches) {
+        setIsInstalled(true);
+        return;
+      }
+    } catch (e) {
+      // matchMedia not supported
+      console.log('PWA: matchMedia not supported');
     }
 
     // Listen for beforeinstallprompt event
@@ -30,30 +35,51 @@ export function InstallPrompt({ onDismiss }: InstallPromptProps) {
       return () => clearTimeout(timer);
     };
 
-    window.addEventListener('beforeinstallprompt', handler);
+    // Only add listener if beforeinstallprompt is supported
+    if ('onbeforeinstallprompt' in window) {
+      window.addEventListener('beforeinstallprompt', handler);
+    }
 
     // Check if app was installed
-    window.addEventListener('appinstalled', () => {
+    const appInstalledHandler = () => {
       setIsInstalled(true);
       setShowPrompt(false);
       setDeferredPrompt(null);
-    });
+    };
+    
+    window.addEventListener('appinstalled', appInstalledHandler);
 
     return () => {
-      window.removeEventListener('beforeinstallprompt', handler);
+      if ('onbeforeinstallprompt' in window) {
+        window.removeEventListener('beforeinstallprompt', handler);
+      }
+      window.removeEventListener('appinstalled', appInstalledHandler);
     };
   }, []);
 
   const handleInstall = async () => {
-    if (!deferredPrompt) return;
+    if (!deferredPrompt) {
+      console.log('PWA: No install prompt available');
+      return;
+    }
 
-    deferredPrompt.prompt();
-    const { outcome } = await deferredPrompt.userChoice;
-    
-    if (outcome === 'accepted') {
-      console.log('User accepted the install prompt');
-    } else {
-      console.log('User dismissed the install prompt');
+    try {
+      // Check if prompt method exists
+      if (typeof deferredPrompt.prompt !== 'function') {
+        console.log('PWA: prompt method not available');
+        return;
+      }
+
+      deferredPrompt.prompt();
+      const { outcome } = await deferredPrompt.userChoice;
+      
+      if (outcome === 'accepted') {
+        console.log('User accepted the install prompt');
+      } else {
+        console.log('User dismissed the install prompt');
+      }
+    } catch (error) {
+      console.error('PWA: Install error', error);
     }
     
     setDeferredPrompt(null);
