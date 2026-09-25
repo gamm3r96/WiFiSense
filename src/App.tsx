@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import Sidebar from "./components/Sidebar";
 import TopNav from "./components/TopNav";
+import { InstallPrompt } from "./components/InstallPrompt";
 import type { PageId } from "./nav";
 import Dashboard from "./pages/Dashboard";
 import DatasetsPage from "./pages/DatasetsPage";
@@ -65,6 +66,9 @@ export default function App() {
           {page === "settings" && <SettingsPage />}
         </main>
       </div>
+      
+      {/* PWA Install Prompt */}
+      <InstallPrompt />
     </div>
   );
 }
